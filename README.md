@@ -23,14 +23,16 @@ Goal: ship a new mobile mini game every 2 weeks with:
 3. Create real Unity template projects using `tools/bootstrap-template-projects.ps1`.
 4. Clone a template into a game folder using `tools/new-game.ps1`.
 5. Fill `Games/<GameName>/store.yaml`.
-6. Compile check: `tools/check-unity-compile.ps1 -ProjectPath "Games/<GameName>/UnityProject"`.
-7. Build Android using `tools/build-android.ps1 -ProjectPath "Games/<GameName>/UnityProject"`.
+6. Generate beatmaps (optional): `tools/analyze-audio.ps1 -GamePath "Games/Game_Arcade_ZebraDash" -CopyFromZip`.
+7. Compile check: `tools/check-unity-compile.ps1 -ProjectPath "Games/<GameName>/UnityProject"`.
+8. Build Android using `tools/build-android.ps1 -ProjectPath "Games/<GameName>/UnityProject"`.
 
 ## How To Run / Structure
 
 - `Packages/MiniLab.Core`: shared runtime/editor modules used by all game apps.
 - `Templates/*Template`: reusable genre skeletons.
 - `Games/Game_<Genre>_<Codename>`: standalone app directories, each with its own `store.yaml`.
+- `Games/Game_<Genre>_<Codename>/AudioLocal`: local-only WAV workspace (gitignored).
 - `Docs/*`: release/compliance/ops single source of truth.
 
 ## Review Workflow

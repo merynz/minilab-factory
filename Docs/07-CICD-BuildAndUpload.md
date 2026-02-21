@@ -19,6 +19,21 @@ Kontrol edilenler:
 
 ## 1) Android Pipeline (Windows baseline)
 
+### Beatmap uretimi (iki demo track)
+
+```powershell
+.\tools\analyze-audio.ps1 -GamePath "Games/Game_Arcade_ZebraDash" -CopyFromZip
+```
+
+Uretilen dosyalar:
+- `Games/Game_Arcade_ZebraDash/Content/music_catalog.json`
+- `Games/Game_Arcade_ZebraDash/Content/Levels/level01_electro.json`
+- `Games/Game_Arcade_ZebraDash/Content/Levels/level02_robo.json`
+
+Not:
+- Local audio klasoru: `Games/Game_Arcade_ZebraDash/AudioLocal/` (gitignored)
+- Audio yoksa workbench metronom click ile devam eder.
+
 ### Compile check (hang-proof)
 
 ```powershell

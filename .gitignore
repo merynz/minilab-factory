@@ -45,3 +45,6 @@ GoogleService-Info.plist
 google-services.json
 *.key
 *.token
+
+# Local audio workspace (not committed)
+Games/*/AudioLocal/

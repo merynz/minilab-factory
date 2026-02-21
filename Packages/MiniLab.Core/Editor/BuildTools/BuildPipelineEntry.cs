@@ -35,6 +35,7 @@ namespace MiniLab.Build
 
                 AndroidStoreConfig storeConfig = LoadAndroidStoreConfig();
                 ApplyAndroidApplicationId(storeConfig.ApplicationId, storeConfig.SourcePath, storeConfig.IsPlaceholder);
+                ApplyLandscapeOrientation();
                 ValidateKeystoreConfiguration();
 
                 string[] scenes = EnsureEnabledScenesWithBootstrap();
@@ -75,6 +76,7 @@ namespace MiniLab.Build
 
                 string iosBundleId = LoadIosBundleId();
                 ApplyIosBundleId(iosBundleId);
+                ApplyLandscapeOrientation();
 
                 BuildPlayerOptions options = new BuildPlayerOptions
                 {
@@ -303,6 +305,15 @@ namespace MiniLab.Build
         {
             string value = Environment.GetEnvironmentVariable(envName);
             return string.IsNullOrWhiteSpace(value) ? fallback : value;
+        }
+
+        private static void ApplyLandscapeOrientation()
+        {
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = true;
+            PlayerSettings.allowedAutorotateToLandscapeRight = false;
+            PlayerSettings.allowedAutorotateToPortrait = false;
+            PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
         }
 
         private static string SanitizeFileName(string value)

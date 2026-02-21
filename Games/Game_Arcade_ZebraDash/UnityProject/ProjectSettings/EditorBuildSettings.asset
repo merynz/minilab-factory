@@ -8,5 +8,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Bootstrap.unity
     guid: ff2a0a33f58e03f4e8da2f4bdec85c6c
+  - enabled: 1
+    path: Assets/Scenes/BeatmapWorkbench.unity
+    guid: 1c21efe05c674f8581ad69b277318349
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

@@ -33,6 +33,7 @@ Her PR aciklamasi su formati kullanir:
 .\tools\check-docs.ps1
 .\tools\check-template-purity.ps1
 .\tools\check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
+.\tools\analyze-audio.ps1 -GamePath "Games/Game_Arcade_ZebraDash" -CopyFromZip
 .\tools\build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-review.aab"
 .\tools\upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/zebradash-review.aab" -GamePath "Games/Game_Arcade_ZebraDash" -SkipIfSecretsMissing
 .\tools\build-ios.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -SkipIfNoMac
@@ -44,6 +45,12 @@ Her PR aciklamasi su formati kullanir:
 - `BuildArtifacts/unity-compile.log`
 - `BuildArtifacts/unity-android-build.log`
 - `BuildArtifacts/unity-ios-build.log`
+
+## Uretilen Level Dosyalari
+
+- `Games/Game_Arcade_ZebraDash/Content/music_catalog.json`
+- `Games/Game_Arcade_ZebraDash/Content/Levels/level01_electro.json`
+- `Games/Game_Arcade_ZebraDash/Content/Levels/level02_robo.json`
 
 ## Risk / Blokajlar
 
