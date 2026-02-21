@@ -68,7 +68,23 @@ function Show-LogTail([string]$LogPath) {
 }
 
 function Invoke-WithTimeout([string]$FilePath, [string[]]$Args, [int]$TimeoutMins, [string]$LogPath) {
+    $argsPreview = ($Args | ForEach-Object {
+            if ($_ -match '\s') { '"' + $_ + '"' } else { $_ }
+        }) -join ' '
+    Write-Host "Command: `"$FilePath`" $argsPreview"
+
     $process = Start-Process -FilePath $FilePath -ArgumentList $Args -PassThru -NoNewWindow
+
+    if ($FilePath -like "*Unity*") {
+        Start-Sleep -Seconds 8
+        $process.Refresh()
+        if (-not $process.HasExited -and $process.MainWindowHandle -ne 0) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            if ($LogPath) { Show-LogTail $LogPath }
+            throw "FAIL: interactive launch happened (Unity GUI window detected)."
+        }
+    }
+
     $completed = $process.WaitForExit([int]([Math]::Max(1, $TimeoutMins) * 60 * 1000))
     if (-not $completed) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
@@ -129,6 +145,7 @@ $unityArgs = @(
     "-projectPath", $resolvedProjectPath,
     "-buildTarget", "iOS",
     "-executeMethod", "MiniLab.Build.BuildPipelineEntry.BuildiOSXcodeProject",
+    "-stackTraceLogType", "Full",
     "-logFile", $logFile
 )
 

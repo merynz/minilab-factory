@@ -38,10 +38,32 @@ function Resolve-UnityPath([string]$ExplicitPath) {
 
 function Invoke-UnityWithTimeout([string]$ExePath, [string[]]$Arguments, [string]$LogPath, [int]$TimeoutMins) {
     New-Item -ItemType Directory -Path (Split-Path -Parent $LogPath) -Force | Out-Null
+
+    $argsPreview = ($Arguments | ForEach-Object {
+            if ($_ -match '\s') { '"' + $_ + '"' } else { $_ }
+        }) -join ' '
+    Write-Host "Unity command: `"$ExePath`" $argsPreview"
+
     $process = Start-Process -FilePath $ExePath -ArgumentList $Arguments -PassThru -NoNewWindow
+
+    Start-Sleep -Seconds 8
+    $process.Refresh()
+    if (-not $process.HasExited -and $process.MainWindowHandle -ne 0) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        if (Test-Path $LogPath) {
+            Write-Host "----- LOG TAIL (last 200 lines) -----"
+            Get-Content -Path $LogPath -Tail 200 | ForEach-Object { Write-Host $_ }
+        }
+        throw "FAIL: interactive launch happened (Unity GUI window detected)."
+    }
+
     $completed = $process.WaitForExit([int]([Math]::Max(1, $TimeoutMins) * 60 * 1000))
     if (-not $completed) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        if (Test-Path $LogPath) {
+            Write-Host "----- LOG TAIL (last 200 lines) -----"
+            Get-Content -Path $LogPath -Tail 200 | ForEach-Object { Write-Host $_ }
+        }
         throw "Unity timed out after $TimeoutMins minutes. Log: $LogPath"
     }
 
@@ -239,6 +261,7 @@ Invoke-UnityWithTimeout $resolvedUnityPath @(
     "-nographics",
     "-quit",
     "-createProject", $seedPath,
+    "-stackTraceLogType", "Full",
     "-logFile", $createLog
 ) $createLog $TimeoutMinutes
 
@@ -253,6 +276,7 @@ Invoke-UnityWithTimeout $resolvedUnityPath @(
     "-quit",
     "-projectPath", $seedPath,
     "-executeMethod", "MiniLab.TemplateBootstrap.TemplateSetup.Run",
+    "-stackTraceLogType", "Full",
     "-logFile", $setupLog
 ) $setupLog $TimeoutMinutes
 

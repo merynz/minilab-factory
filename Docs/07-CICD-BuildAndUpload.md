@@ -1,96 +1,115 @@
 # 07 - CI/CD Build and Upload
 
-Goal: one-command build and one-command upload flows.
+Goal: "tek tus" calisir pipeline. Unity GUI acmadan, deterministik log ve timeout ile.
 
-## Tooling Choice
-
-- Build orchestration: Unity batch mode + PowerShell scripts in `tools/`.
-- Upload orchestration: fastlane lanes in `fastlane/Fastfile`.
-- CI runners:
-  - Android: Windows or Linux runner with Unity + Java + Android SDK.
-  - iOS: macOS runner with Unity + Xcode + fastlane.
-
-## Android Pipeline
-
-### Build (single command)
+## 0) Doctor (On Kosul)
 
 ```powershell
-tools/build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-review.aab"
+.\tools\doctor.ps1
 ```
 
-Output path is deterministic by default:
+Kontrol edilenler:
+- Unity Editor (beklenen `6000.2.6f2`)
+- Unity Android Build Support + SDK/NDK/OpenJDK
+- `adb` ve `java`
+- Ruby/Bundler/Fastlane (upload icin)
+- Play/TestFlight env hazirligi
 
-- `BuildArtifacts/Android/<GameName>.aab`
+`doctor` cikti formati: `PASS / FAIL / SKIP`.
+
+## 1) Android Pipeline (Windows baseline)
+
+### Compile check (hang-proof)
+
+```powershell
+.\tools\check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
+```
+
+### AAB build
+
+```powershell
+.\tools\build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-review.aab"
+```
+
+Deterministik output/log:
+- AAB: `BuildArtifacts/Android/zebradash-review.aab`
 - Unity log: `BuildArtifacts/unity-android-build.log`
 
-### Upload Internal Testing (single command)
+### Internal upload (opsiyonel)
 
 ```powershell
-tools/upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/app-release.aab" -PackageName "com.zebratank.zebradash" -SkipIfSecretsMissing
+.\tools\upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/zebradash-review.aab" -GamePath "Games/Game_Arcade_ZebraDash" -SkipIfSecretsMissing
 ```
 
-Required secret:
+Secret standardi:
+- Tercih edilen: `MINILAB_PLAY_JSON`
+- Geriye donuk destek: `GOOGLE_PLAY_JSON_KEY_PATH`
 
-- `GOOGLE_PLAY_JSON_KEY_PATH`
-- If `bundle` or secret is missing and `-SkipIfSecretsMissing` is set, script returns `SKIP` (not `FAIL`).
+Eksik tooling/secret varsa upload script `SKIP` doner (exit 0), nedeni acik yazar.
 
-## iOS Pipeline
+## 2) iOS Pipeline (Resmi Yol + Alternatifler)
 
-### Build export (single command)
+### Resmi yol (secilen): Seçenek B - GitHub Actions macOS runner
 
-```powershell
-tools/build-ios.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -SkipIfNoMac
-```
+Gerekce:
+- Windows agirlikli ekipte merkezi release otomasyonu
+- PR/branch tabanli izlenebilirlik
+- fastlane + App Store Connect API key ile sirket ici standardizasyon
 
-### Build archive + Upload TestFlight Internal (single command)
+Windows host'ta iOS scripts:
+- `tools/build-ios.ps1 -SkipIfNoMac` -> `SKIP`
+- `tools/upload-testflight-internal.ps1 -SkipIfNoMac` -> `SKIP`
 
-```powershell
-tools/build-ios.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -Archive -UploadInternal -SkipIfNoMac
-```
+Bu beklenen davranistir; gercek build/upload macOS runner'da kosar.
 
-If host is not macOS, script reports:
+### Seçenek A - Dedicated Mac mini
 
-- `SKIP: blocked by Mac/signing requirements`
-- Alternatives: remote Mac, GitHub Actions macOS runner, Unity Cloud Build.
+- Mac'te Unity + Xcode + fastlane kurulumu
+- Signing materyalleri local keychain'de
+- `tools/build-ios.ps1` + `tools/upload-testflight-internal.ps1` lokal calisir
 
-Required iOS credentials (one of):
+### Seçenek C - Unity Cloud Build
 
-- App Store Connect API key triple:
-  - `APP_STORE_CONNECT_API_KEY_ID`
-  - `APP_STORE_CONNECT_ISSUER_ID`
-  - `APP_STORE_CONNECT_API_KEY_CONTENT`
-- or `FASTLANE_SESSION`
+- Unity Cloud Build ile iOS archive
+- Sonrasi TestFlight upload fastlane/ASC API ile
+- Signing/provisioning ve secrets platforma tasinir
 
-## PR Review Checks
+### iOS secrets (B/A/C ortak)
 
-GitHub Actions on PR runs:
+- `APP_STORE_CONNECT_API_KEY_ID`
+- `APP_STORE_CONNECT_ISSUER_ID`
+- `APP_STORE_CONNECT_API_KEY_CONTENT`
+- (opsiyonel fallback) `FASTLANE_SESSION`
 
+## 3) PR Review checks
+
+PR workflow:
 - `tools/check-secrets.ps1`
 - `tools/check-docs.ps1`
 - `tools/check-template-purity.ps1`
 - `tools/check-tree.ps1`
-- `tools/check-unity-compile.ps1` (Android compile check, skip allowed if Unity/module unavailable)
-- iOS dry-run workflow with explicit SKIP message when no macOS runner
+- `tools/check-unity-compile.ps1`
+- iOS dry-run (macOS yoksa bilincli SKIP)
 
-## Versioning Standard
+## 4) Versioning standardi
 
 - Semver:
-  - `major`: broad feature break
-  - `minor`: content/system additions
-  - `patch`: fixes/tuning
+  - `major`: buyuk kirilim
+  - `minor`: yeni ozellik/icerik
+  - `patch`: fix/tuning
 - Build number:
-  - monotonically increasing integer per platform
-  - format recommendation: `YYWWNN` (year, week, sequence)
+  - platform bazli artan integer
+  - onerilen format: `YYWWNN`
 
-## Artifact Standard
+## 5) Artifact standardi
 
 - Android:
   - `.aab`
-  - `mapping.txt`
-  - Unity build log
+  - `mapping.txt` (varsa)
+  - `BuildArtifacts/unity-android-build.log`
   - release notes
 - iOS:
-  - Xcode archive log
-  - exported `.ipa`
-  - export options/logs
+  - Xcode archive/export log
+  - `.ipa`
+  - `BuildArtifacts/unity-ios-build.log`
   - release notes

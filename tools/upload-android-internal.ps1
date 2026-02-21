@@ -90,8 +90,15 @@ if ([string]::IsNullOrWhiteSpace($PackageName)) {
     throw "PackageName is required and could not be derived from store.yaml."
 }
 
-if ([string]::IsNullOrWhiteSpace($env:GOOGLE_PLAY_JSON_KEY_PATH) -or !(Test-Path $env:GOOGLE_PLAY_JSON_KEY_PATH)) {
-    $message = "GOOGLE_PLAY_JSON_KEY_PATH secret is missing."
+$playJsonKeyPath = ""
+if (-not [string]::IsNullOrWhiteSpace($env:MINILAB_PLAY_JSON)) {
+    $playJsonKeyPath = $env:MINILAB_PLAY_JSON
+} elseif (-not [string]::IsNullOrWhiteSpace($env:GOOGLE_PLAY_JSON_KEY_PATH)) {
+    $playJsonKeyPath = $env:GOOGLE_PLAY_JSON_KEY_PATH
+}
+
+if ([string]::IsNullOrWhiteSpace($playJsonKeyPath) -or !(Test-Path $playJsonKeyPath)) {
+    $message = "Play service account JSON secret is missing. Set MINILAB_PLAY_JSON (preferred) or GOOGLE_PLAY_JSON_KEY_PATH."
     if ($SkipIfSecretsMissing) {
         Write-Host "SKIP: $message"
         exit 0
@@ -103,6 +110,9 @@ if ([string]::IsNullOrWhiteSpace($env:GOOGLE_PLAY_JSON_KEY_PATH) -or !(Test-Path
 $env:MINILAB_ANDROID_AAB_PATH = $AabPath
 $env:MINILAB_ANDROID_PACKAGE_NAME = $PackageName
 $env:MINILAB_ANDROID_TRACK = $Track
+$env:MINILAB_PLAY_JSON = $playJsonKeyPath
+$env:GOOGLE_PLAY_JSON_KEY_PATH = $playJsonKeyPath
+$env:SUPPLY_JSON_KEY = $playJsonKeyPath
 
 Push-Location $repoRoot
 $code = Invoke-Native "bundle" @("exec", "fastlane", "android", "internal")

@@ -19,11 +19,12 @@ Goal: ship a new mobile mini game every 2 weeks with:
 ## Quick Start
 
 1. Read `Docs/06-TwoWeekCadence.md`.
-2. Create real Unity template projects using `tools/bootstrap-template-projects.ps1`.
-3. Clone a template into a game folder using `tools/new-game.ps1`.
-4. Add `MiniLab.Core` as local UPM dependency.
+2. Run prerequisites check: `tools/doctor.ps1`.
+3. Create real Unity template projects using `tools/bootstrap-template-projects.ps1`.
+4. Clone a template into a game folder using `tools/new-game.ps1`.
 5. Fill `Games/<GameName>/store.yaml`.
-6. Build Android using `tools/build-android.ps1 -ProjectPath "Games/<GameName>/UnityProject"`.
+6. Compile check: `tools/check-unity-compile.ps1 -ProjectPath "Games/<GameName>/UnityProject"`.
+7. Build Android using `tools/build-android.ps1 -ProjectPath "Games/<GameName>/UnityProject"`.
 
 ## How To Run / Structure
 
@@ -38,8 +39,9 @@ Goal: ship a new mobile mini game every 2 weeks with:
   - `MiniLab Factory v0.1 - <milestone adı>`
 - Every PR starts with a `REVIEW PACK` block (see `.github/pull_request_template.md`).
 - Run local checks before pushing:
+  - `.\tools\doctor.ps1`
   - `.\tools\check-secrets.ps1`
   - `.\tools\check-docs.ps1`
   - `.\tools\check-template-purity.ps1`
   - `.\tools\check-tree.ps1`
-  - `.\tools\check-unity-compile.ps1`
+  - `.\tools\check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"`

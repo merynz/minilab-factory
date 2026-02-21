@@ -9,6 +9,31 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function Ensure-CorePackageManifestPath([string]$UnityProjectPath, [string]$RepoRoot) {
+    $manifestPath = Join-Path $UnityProjectPath "Packages/manifest.json"
+    if (!(Test-Path $manifestPath)) {
+        throw "manifest.json not found: $manifestPath"
+    }
+
+    $manifestObj = Get-Content -Path $manifestPath -Raw | ConvertFrom-Json
+    $deps = [ordered]@{}
+    $manifestObj.dependencies.PSObject.Properties | ForEach-Object { $deps[$_.Name] = $_.Value }
+
+    $manifestDir = Split-Path -Parent $manifestPath
+    $coreAbsPath = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot "Packages/MiniLab.Core"))
+    $coreRelative = [System.IO.Path]::GetRelativePath($manifestDir, $coreAbsPath).Replace('\', '/')
+    $deps["com.zebratank.minilab.core"] = "file:$coreRelative"
+
+    $manifestOut = [ordered]@{
+        dependencies = $deps
+    }
+    if ($manifestObj.PSObject.Properties.Name -contains "scopedRegistries") {
+        $manifestOut["scopedRegistries"] = $manifestObj.scopedRegistries
+    }
+
+    $manifestOut | ConvertTo-Json -Depth 20 | Set-Content -Path $manifestPath
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $templateTitle = (Get-Culture).TextInfo.ToTitleCase($Template)
 $templatePath = Join-Path $repoRoot ("Templates/{0}Template" -f $templateTitle)
@@ -42,6 +67,9 @@ if (Test-Path $gameUnityProject) {
     Copy-Item $unityTemplatePath $gameUnityProject -Recurse -Force
     Write-Host "UnityProject copied from template."
 }
+
+Ensure-CorePackageManifestPath -UnityProjectPath $gameUnityProject -RepoRoot $repoRoot
+Write-Host "Core package manifest path normalized."
 
 if ([string]::IsNullOrWhiteSpace($DisplayName)) {
     $DisplayName = $Codename

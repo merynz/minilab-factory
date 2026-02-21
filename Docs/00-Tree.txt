@@ -1,5 +1,5 @@
 MiniLab Repo Tree
-Generated: 2026-02-21 19:18:46 +03:00
+Generated: 2026-02-21 23:43:37 +03:00
 
 Files:
  - .github/pull_request_template.md
@@ -276,10 +276,11 @@ Files:
  - tools/check-template-purity.ps1
  - tools/check-tree.ps1
  - tools/check-unity-compile.ps1
+ - tools/doctor.ps1
  - tools/new-game.ps1
  - tools/README.md
  - tools/upload-android-internal.ps1
  - tools/upload-testflight-internal.ps1
  - tools/version-bump.ps1
 
-Total files: 279
+Total files: 280

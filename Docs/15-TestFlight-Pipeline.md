@@ -1,28 +1,64 @@
 # 15 - TestFlight Pipeline
 
-## Internal Testers
+## Official Strategy
 
-- Build upload does not require TestFlight App Review.
-- Use for rapid smoke and regression rounds.
-- Minimum: release notes + known issues note per build.
+Resmi yol: **Seçenek B - GitHub Actions macOS runner**.
 
-## External Testers
+Neden:
+- Windows tabanli ekipte merkezi iOS release.
+- PR/calisma gecmisi ve release audit izi net.
+- Secrets GitHub Actions secrets ile yonetilebilir.
 
-- Build must pass TestFlight App Review before external distribution.
-- Keep compliance metadata and export docs ready before submission.
-- Reuse internal-tested build when possible to reduce delays.
+## Strategy Matrix (A/B/C)
+
+### A) Dedicated Mac mini (lokal release host)
+
+- Sertifika/provisioning:
+  - Apple Distribution cert + provisioning profile Mac keychain'e kurulur.
+- App Store Connect API key:
+  - key id / issuer id / private key secure local vault'tan okunur (repo'ya girmez).
+- TestFlight upload:
+  - `bundle exec fastlane ios internal`
+
+### B) GitHub Actions macOS runner (resmi)
+
+- Sertifika/provisioning:
+  - CI runtime'da import edilir (base64 p12 + profile secret).
+- App Store Connect API key:
+  - `APP_STORE_CONNECT_API_KEY_ID`
+  - `APP_STORE_CONNECT_ISSUER_ID`
+  - `APP_STORE_CONNECT_API_KEY_CONTENT`
+- TestFlight upload:
+  - macOS workflow icinde `build-ios.ps1` + fastlane lane.
+
+### C) Unity Cloud Build
+
+- Sertifika/provisioning:
+  - Unity Cloud Build signing panelinden yönetilir.
+- App Store Connect API key:
+  - UCB / downstream CI secrets olarak saklanir.
+- TestFlight upload:
+  - UCB export + fastlane upload adimi.
+
+## Internal vs External Testers
+
+- Internal:
+  - TestFlight App Review gerekmez.
+  - Hedef: smoke + regression + quality gate.
+- External:
+  - TestFlight App Review gerekir.
+  - Privacy/compliance verileri release oncesi tamamlanmis olmali.
 
 ## Standard Flow
 
-1. CI uploads IPA to TestFlight internal.
-2. Internal QA validates quality gates.
-3. Promote to external group only after pass criteria.
-4. Collect crash + retention signals.
-5. Decide production readiness.
+1. Unity iOS export ve archive olustur.
+2. IPA TestFlight internal'a yuklenir.
+3. Internal QA quality gate raporu verir.
+4. Gerekirse external teste promote edilir.
+5. Go/No-Go ile production release karari alinir.
 
-## Automation Inputs
+## Secret Management Rule
 
-- `MINILAB_IOS_IPA_PATH`
-- `MINILAB_IOS_BUNDLE_ID`
-- App Store Connect API credentials in CI secrets.
-
+- Secrets sadece CI/local secure store'da tutulur.
+- Repo icine `.p12`, `.mobileprovision`, `.env`, API key commit edilmez.
+- Secret rotasyonu: ekip degisikligi + incident sonrasi zorunlu.

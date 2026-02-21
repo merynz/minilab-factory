@@ -1,37 +1,56 @@
-# 00 - Review Pack (Milestone 0 Stabilize + Bootstrap)
+# 00 - Review Pack Standardi
 
-## Repo Yapisi Ozeti
+Her PR aciklamasi su formati kullanir:
 
-- `Templates/*Template/UnityProject`: gercek Unity template skeleton (Assets/Packages/ProjectSettings + Bootstrap scene + URP 2D setup).
-- `Games/Game_Arcade_ZebraDash/UnityProject`: build test edilen gercek oyun projesi.
-- `Packages/MiniLab.Core`: ortak runtime + editor build entry (`BuildPipelineEntry`).
-- `tools/`: check/build/upload/new-game/bootstrap otomasyonlari.
-- `.github/workflows/`: PR checks (secrets, docs, purity, compile) + iOS dry-run.
+## Header
 
-## Milestone 0 Sonucu
+- Repo: `<repo-link>`
+- PR: `<pr-link>`
+- Commit: `<sha>`
+- Unity detected version: `<version + path>`
 
-- PASS:
-  - Secrets scan (`tools/check-secrets.ps1`)
-  - Docs checklist (`tools/check-docs.ps1`)
-  - Template purity (`tools/check-template-purity.ps1`)
-  - Unity compile check (`tools/check-unity-compile.ps1`)
-  - Android AAB build (`tools/build-android.ps1`)
-- SKIP:
-  - Android internal upload: localde `bundle`/Play secrets yok.
-  - iOS build + TestFlight upload: Windows ortaminda macOS/signing blokaji.
+## PASS / FAIL / SKIP Tablosu
 
-## Kalanlar / Eksikler
+- Template purity (no SiriusGameMaker):
+- Secrets scan:
+- Docs checklist:
+- Doctor:
+- Unity compile:
+- Android AAB build:
+- Android upload internal:
+- iOS build:
+- iOS TestFlight upload:
 
-- CI secrets (Play service account, App Store Connect key) baglanmadi.
-- iOS archive+upload gercek calisma icin macOS runner veya remote Mac secimi bekliyor.
+## Root Cause (Fail varsa)
 
-## Riskler
+- 1-3 satir teknik kok neden.
 
-- iOS tarafi macOS/signing olmadan binary adimina gecemez.
-- Android upload tarafi `bundle exec fastlane` tooling + secret seti olmadan SKIP kalir.
-- SDK envanteri degisirse Data Safety/Privacy Label tekrar guncellenmeli.
+## Reproduce Komutlari
 
-## Sir Icin Karar Sorulari
+```powershell
+.\tools\doctor.ps1
+.\tools\check-secrets.ps1
+.\tools\check-docs.ps1
+.\tools\check-template-purity.ps1
+.\tools\check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
+.\tools\build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-review.aab"
+.\tools\upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/zebradash-review.aab" -GamePath "Games/Game_Arcade_ZebraDash" -SkipIfSecretsMissing
+.\tools\build-ios.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -SkipIfNoMac
+.\tools\upload-testflight-internal.ps1 -IpaPath "BuildArtifacts/iOS/app-store.ipa" -SkipIfNoMac -SkipIfSecretsMissing
+```
 
-1. iOS icin resmi yol hangisi olsun: remote Mac, GitHub Actions macOS runner, yoksa Unity Cloud Build?
-2. Android upload icin standart nerede calissin: lokal release makinesi mi, CI runner mi?
+## Log Pathleri
+
+- `BuildArtifacts/unity-compile.log`
+- `BuildArtifacts/unity-android-build.log`
+- `BuildArtifacts/unity-ios-build.log`
+
+## Risk / Blokajlar
+
+- iOS macOS + signing zorunlulugu.
+- Play/TestFlight secrets yoksa upload adimlari SKIP.
+
+## Sir Icin Karar Sorulari (max 2)
+
+1. iOS resmi yolu: Dedicated Mac mini / GitHub Actions macOS runner / Unity Cloud Build?
+2. Android upload adimi lokal release host'ta mi, CI'da mi zorunlu olacak?

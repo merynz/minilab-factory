@@ -6,13 +6,16 @@ platform :android do
     aab_path = ENV["MINILAB_ANDROID_AAB_PATH"]
     package_name = ENV["MINILAB_ANDROID_PACKAGE_NAME"]
     track_name = ENV["MINILAB_ANDROID_TRACK"] || "internal"
+    json_key_path = ENV["MINILAB_PLAY_JSON"] || ENV["GOOGLE_PLAY_JSON_KEY_PATH"] || ENV["SUPPLY_JSON_KEY"]
 
     UI.user_error!("MINILAB_ANDROID_AAB_PATH is required") if aab_path.to_s.empty?
     UI.user_error!("MINILAB_ANDROID_PACKAGE_NAME is required") if package_name.to_s.empty?
+    UI.user_error!("Play JSON key path is required (MINILAB_PLAY_JSON)") if json_key_path.to_s.empty?
 
     upload_to_play_store(
       package_name: package_name,
       aab: aab_path,
+      json_key: json_key_path,
       track: track_name,
       skip_upload_images: true,
       skip_upload_screenshots: true,
