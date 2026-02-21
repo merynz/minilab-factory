@@ -1,0 +1,43 @@
+# Unity
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]serSettings/
+MemoryCaptures/
+
+# Artifacts
+BuildArtifacts/
+*.aab
+*.ipa
+*.apk
+*.xcarchive
+*.mobileprovision
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.cer
+*.crt
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Fastlane secrets
+fastlane/.env*
+fastlane/report.xml
+fastlane/Preview.html
+
+# Secrets / env
+.env
+.env.*
+*.pem
+GoogleService-Info.plist
+google-services.json
+*.key
+*.token

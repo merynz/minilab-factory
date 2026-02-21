@@ -1,0 +1,45 @@
+game_code: "genre_codename"
+bundle_id_ios: "com.company.game"
+application_id_android: "com.company.game"
+
+locales:
+  tr-TR:
+    app_name: "Game Name TR"
+    short_description: "Kisa aciklama"
+    long_description: "Uzun aciklama"
+    ad_text: "Reklam metni"
+  en-US:
+    app_name: "Game Name"
+    short_description: "Short description"
+    long_description: "Long description"
+    ad_text: "Ad copy"
+
+category:
+  android: "Arcade"
+  ios: "Games/Arcade"
+
+tags:
+  - "tag1"
+  - "tag2"
+
+privacy_policy_url: "https://example.com/privacy"
+support_email: "support@example.com"
+
+sdk_inventory:
+  core:
+    - "AdMob SDK"
+    - "Google UMP SDK"
+  delta:
+    - "none"
+
+release_notes_template:
+  tr-TR:
+    - "Dengeleme guncellemeleri"
+    - "Stabilite iyilestirmeleri"
+  en-US:
+    - "Balancing updates"
+    - "Stability improvements"
+
+shots_ref:
+  screenshot_shot_list: "Docs/assets/shots/default_screens.md"
+  video_shot_list: "Docs/assets/shots/default_video.md"

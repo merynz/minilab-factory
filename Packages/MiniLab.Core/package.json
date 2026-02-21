@@ -1,0 +1,10 @@
+{
+  "name": "com.zebratank.minilab.core",
+  "version": "0.1.0",
+  "displayName": "MiniLab Core",
+  "description": "Shared Core package for MiniLab mobile mini games.",
+  "unity": "2022.3",
+  "author": {
+    "name": "Zebra Tank Game Studio"
+  }
+}

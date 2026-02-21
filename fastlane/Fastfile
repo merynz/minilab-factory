@@ -1,0 +1,36 @@
+default_platform(:ios)
+
+platform :android do
+  desc "Upload AAB to Google Play Internal Testing"
+  lane :internal do
+    aab_path = ENV["MINILAB_ANDROID_AAB_PATH"]
+    package_name = ENV["MINILAB_ANDROID_PACKAGE_NAME"]
+    track_name = ENV["MINILAB_ANDROID_TRACK"] || "internal"
+
+    UI.user_error!("MINILAB_ANDROID_AAB_PATH is required") if aab_path.to_s.empty?
+    UI.user_error!("MINILAB_ANDROID_PACKAGE_NAME is required") if package_name.to_s.empty?
+
+    upload_to_play_store(
+      package_name: package_name,
+      aab: aab_path,
+      track: track_name,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_metadata: true
+    )
+  end
+end
+
+platform :ios do
+  desc "Upload IPA to TestFlight internal"
+  lane :internal do
+    ipa_path = ENV["MINILAB_IOS_IPA_PATH"]
+    UI.user_error!("MINILAB_IOS_IPA_PATH is required") if ipa_path.to_s.empty?
+
+    upload_to_testflight(
+      ipa: ipa_path,
+      skip_waiting_for_build_processing: true
+    )
+  end
+end
+
