@@ -27,6 +27,10 @@ BuildArtifacts/
 Thumbs.db
 .idea/
 .vscode/
+.tmp/
+tmp/
+.utmp/
+.gradle/
 
 # Fastlane secrets
 fastlane/.env*

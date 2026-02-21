@@ -1,0 +1,19 @@
+name: iOS Pipeline Dry Run
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ios-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report iOS runner/signing status
+        run: |
+          if [ "$RUNNER_OS" != "macOS" ]; then
+            echo "SKIP: iOS build/upload blocked by Mac + signing requirements."
+            echo "Alternatives: remote Mac, GitHub Actions macOS runner, or Unity Cloud Build."
+            exit 0
+          fi
+          echo "PASS: macOS runner detected."

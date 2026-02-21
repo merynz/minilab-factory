@@ -1,0 +1,39 @@
+name: PR Lint and Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint-check:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Secrets scan
+        shell: pwsh
+        run: .\tools\check-secrets.ps1
+
+      - name: Docs checklist
+        shell: pwsh
+        run: .\tools\check-docs.ps1
+
+      - name: Template purity (no Sirius folders)
+        shell: pwsh
+        run: .\tools\check-template-purity.ps1
+
+      - name: Generate tree summary
+        shell: pwsh
+        run: .\tools\check-tree.ps1
+
+      - name: Unity compile check (Android target)
+        shell: pwsh
+        run: .\tools\check-unity-compile.ps1
+
+      - name: Upload tree artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: repo-tree
+          path: Docs/00-Tree.txt

@@ -15,28 +15,62 @@ Goal: one-command build and one-command upload flows.
 ### Build (single command)
 
 ```powershell
-tools/build-android.ps1 -UnityPath "C:\Unity\Editor\Unity.exe" -ProjectPath "C:\Games\Game_Arcade_ZebraDash"
+tools/build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-review.aab"
 ```
+
+Output path is deterministic by default:
+
+- `BuildArtifacts/Android/<GameName>.aab`
+- Unity log: `BuildArtifacts/unity-android-build.log`
 
 ### Upload Internal Testing (single command)
 
 ```powershell
-tools/upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/game.aab" -PackageName "com.zebratank.zebradash"
+tools/upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/app-release.aab" -PackageName "com.zebratank.zebradash" -SkipIfSecretsMissing
 ```
+
+Required secret:
+
+- `GOOGLE_PLAY_JSON_KEY_PATH`
+- If `bundle` or secret is missing and `-SkipIfSecretsMissing` is set, script returns `SKIP` (not `FAIL`).
 
 ## iOS Pipeline
 
 ### Build export (single command)
 
 ```powershell
-tools/build-ios.ps1 -UnityPath "/Applications/Unity/Hub/Editor/2022.3.0f1/Unity.app/Contents/MacOS/Unity" -ProjectPath "/Users/runner/Games/Game_Arcade_ZebraDash"
+tools/build-ios.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -SkipIfNoMac
 ```
 
-### Upload TestFlight Internal (single command)
+### Build archive + Upload TestFlight Internal (single command)
 
 ```powershell
-tools/upload-testflight-internal.ps1 -IpaPath "BuildArtifacts/iOS/game.ipa" -BundleId "com.zebratank.zebradash"
+tools/build-ios.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -Archive -UploadInternal -SkipIfNoMac
 ```
+
+If host is not macOS, script reports:
+
+- `SKIP: blocked by Mac/signing requirements`
+- Alternatives: remote Mac, GitHub Actions macOS runner, Unity Cloud Build.
+
+Required iOS credentials (one of):
+
+- App Store Connect API key triple:
+  - `APP_STORE_CONNECT_API_KEY_ID`
+  - `APP_STORE_CONNECT_ISSUER_ID`
+  - `APP_STORE_CONNECT_API_KEY_CONTENT`
+- or `FASTLANE_SESSION`
+
+## PR Review Checks
+
+GitHub Actions on PR runs:
+
+- `tools/check-secrets.ps1`
+- `tools/check-docs.ps1`
+- `tools/check-template-purity.ps1`
+- `tools/check-tree.ps1`
+- `tools/check-unity-compile.ps1` (Android compile check, skip allowed if Unity/module unavailable)
+- iOS dry-run workflow with explicit SKIP message when no macOS runner
 
 ## Versioning Standard
 
@@ -60,4 +94,3 @@ tools/upload-testflight-internal.ps1 -IpaPath "BuildArtifacts/iOS/game.ipa" -Bun
   - exported `.ipa`
   - export options/logs
   - release notes
-

@@ -1,0 +1,21 @@
+REVIEW PACK
+- Repo: https://github.com/merynz/minilab-factory
+- PR: <PR linki>
+- Commit: <sha>
+- Degisiklik ozeti:
+  - <5-10 satir>
+- PASS/FAIL/SKIP tablosu:
+  - Secrets scan: PASS/FAIL
+  - Docs checklist: PASS/FAIL
+  - Android build (AAB): PASS/FAIL
+  - Android upload (Internal): PASS/FAIL/SKIP
+  - iOS build (archive): PASS/FAIL/SKIP
+  - iOS upload (TestFlight): PASS/FAIL/SKIP
+- Nasil calistirilir (tek komutlar):
+  - .\tools\check-*.ps1
+  - .\tools\build-android.ps1 / .\tools\upload-android-internal.ps1
+  - iOS icin Mac + signing gereklidir.
+- Kalan riskler / blokajlar:
+  - <net>
+- Sir icin karar sorulari:
+  - <en fazla 2>

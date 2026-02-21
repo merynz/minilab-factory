@@ -1,36 +1,37 @@
-# 00 - Review Pack
+# 00 - Review Pack (Milestone 0 Stabilize + Bootstrap)
 
 ## Repo Yapisi Ozeti
 
-- `Packages/MiniLab.Core`: tum oyunlarda ortak Unity UPM package (boot, policy kit, telemetry, remote config, debug, store ops yardimcilari).
-- `Templates/ArcadeTemplate`, `Templates/PuzzleTemplate`, `Templates/DefenseTemplate`: tur bazli starter dokular + smoke test checklist.
-- `Games/`: her oyunun ayri app dizini ve tek kaynak `store.yaml`.
-- `Docs/`: release, compliance, CI/CD, quality gate ve store ops standartlari.
-- `tools/` + `fastlane/`: build/upload ve release otomasyon girisleri.
+- `Templates/*Template/UnityProject`: gercek Unity template skeleton (Assets/Packages/ProjectSettings + Bootstrap scene + URP 2D setup).
+- `Games/Game_Arcade_ZebraDash/UnityProject`: build test edilen gercek oyun projesi.
+- `Packages/MiniLab.Core`: ortak runtime + editor build entry (`BuildPipelineEntry`).
+- `tools/`: check/build/upload/new-game/bootstrap otomasyonlari.
+- `.github/workflows/`: PR checks (secrets, docs, purity, compile) + iOS dry-run.
 
-## Deliverable Durumu
+## Milestone 0 Sonucu
 
-- Tamamlandi:
-  - Monorepo iskeleti ve `MiniLab.Core` paket v0.1 scaffold.
-  - 3 adet template iskeleti.
-  - Multi-app store metadata standardi (`store.yaml` + template).
-  - Android + iOS compliance dokumantasyonu (UMP, Data Safety, Privacy Label, ATT, Privacy Manifest, TestFlight).
-  - CI/CD komut akislari ve fastlane lane iskeleti.
-  - Quality gates, 2 haftalik cadence ve acceptance mapping dokumanlari.
-- Eksik / sonraki sprint:
-  - Unity tarafinda gercek SDK baglantilari (AdMob/UMP/ATT) tamamlanmasi.
-  - CI ortamlarinda credential kurulumu ve pipeline dry-run.
-  - Her template icin oynanabilir scene/prefab baseline’i.
+- PASS:
+  - Secrets scan (`tools/check-secrets.ps1`)
+  - Docs checklist (`tools/check-docs.ps1`)
+  - Template purity (`tools/check-template-purity.ps1`)
+  - Unity compile check (`tools/check-unity-compile.ps1`)
+  - Android AAB build (`tools/build-android.ps1`)
+- SKIP:
+  - Android internal upload: localde `bundle`/Play secrets yok.
+  - iOS build + TestFlight upload: Windows ortaminda macOS/signing blokaji.
 
-## Riskler (Play / App Store / Privacy)
+## Kalanlar / Eksikler
 
-- Google Play Data Safety beyanlari SDK guncellemelerinde eski kalabilir; her SDK bump’ta envanter yeniden dogrulanmali.
-- iOS Privacy Manifest + Required Reason API beyanlari 3rd-party SDK degisimlerinde kirilabilir; upload oncesi kontrol zorunlu.
-- ATT akisi urun kararina gore netlesmezse iOS review red riski olusur.
-- UMP consent/Privacy Options entry point eksik kalirsa reklam ve policy uyumsuzlugu riski var.
+- CI secrets (Play service account, App Store Connect key) baglanmadi.
+- iOS archive+upload gercek calisma icin macOS runner veya remote Mac secimi bekliyor.
 
-## Sir Karar Noktalari (1-2)
+## Riskler
 
-1. Reklam stratejisi: ilk fazda tracking kapali mi acik mi? (ATT prompt ve attribution akisini dogrudan etkiler.)
-2. CI araci standardi: fastlane + Unity batch tek standart mi, yoksa Unity Cloud Build ile hibrit mi ilerleyecegiz?
+- iOS tarafi macOS/signing olmadan binary adimina gecemez.
+- Android upload tarafi `bundle exec fastlane` tooling + secret seti olmadan SKIP kalir.
+- SDK envanteri degisirse Data Safety/Privacy Label tekrar guncellenmeli.
 
+## Sir Icin Karar Sorulari
+
+1. iOS icin resmi yol hangisi olsun: remote Mac, GitHub Actions macOS runner, yoksa Unity Cloud Build?
+2. Android upload icin standart nerede calissin: lokal release makinesi mi, CI runner mi?
