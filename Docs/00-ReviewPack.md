@@ -2,7 +2,7 @@
 
 - Repo: https://github.com/merynz/minilab-factory
 - PR: `https://github.com/merynz/minilab-factory/pull/new/milestone-2-juice-polish`
-- Commit: `9e6a8d5`
+- Commit: `0867395`
 - Unity detected version: `6000.2.6f2 (C:\Program Files\Unity\Hub\Editor\6000.2.6f2\Editor\Unity.exe)`
 
 ## PASS / FAIL / SKIP
