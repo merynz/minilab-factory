@@ -750,17 +750,17 @@ namespace ZebraDash
                 context.SwitchTarget = switchTarget;
                 if (string.Equals(section.Type, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase))
                 {
-                    context.MaxConsecutiveHazardBeats = 3;
+                    context.MaxConsecutiveHazardBeats = 2;
                     context.MinGapSlots = 1;
-                    context.OffbeatMinRatio = 0.08f;
-                    context.OffbeatMaxRatio = 0.30f;
+                    context.OffbeatMinRatio = 0f;
+                    context.OffbeatMaxRatio = 0.18f;
                 }
                 else
                 {
                     context.MaxConsecutiveHazardBeats = 2;
                     context.MinGapSlots = 2;
                     context.OffbeatMinRatio = 0.00f;
-                    context.OffbeatMaxRatio = 0.15f;
+                    context.OffbeatMaxRatio = 0.05f;
                 }
 
                 result.Add(context);
@@ -800,13 +800,13 @@ namespace ZebraDash
 
             if (string.Equals(sectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase))
             {
-                hazardTarget = (targetStrain >= 0.86f && avgEnergy >= 0.80f) ? 3 : 2;
+                hazardTarget = 2;
                 switchTarget = (targetStrain >= 0.84f && avgEnergy >= 0.78f) ? 2 : 1;
                 return;
             }
 
-            hazardTarget = (targetStrain >= 0.62f && avgEnergy >= 0.64f) ? 2 : 1;
-            switchTarget = (targetStrain >= 0.60f && avgEnergy >= 0.62f) ? 2 : 1;
+            hazardTarget = 1;
+            switchTarget = (targetStrain >= 0.70f && avgEnergy >= 0.70f) ? 2 : 1;
         }
 
         private static bool HasAccentNear(IReadOnlyList<BeatEvent> events, float timeSec, float windowSec)
@@ -1098,7 +1098,8 @@ namespace ZebraDash
                 int offbeatSlot = PickBestOffbeatSlot(bar, beatInBar);
                 bool allowOffbeatChoice = bar.OffbeatMaxRatio > 0.001f
                     && switchDecision == 1
-                    && string.Equals(bar.SectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase);
+                    && string.Equals(bar.SectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase)
+                    && beatInBar == 2;
                 int[] slotOptions = allowOffbeatChoice
                     ? new[] { -1, onbeatSlot, offbeatSlot }
                     : new[] { -1, onbeatSlot };

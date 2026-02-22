@@ -6,7 +6,6 @@ namespace ZebraDash
 {
     public sealed class ParallaxSystem : MonoBehaviour
     {
-        private const float BaseScrollUnitsPerSec = 2.6f;
         private readonly List<ParallaxLayer> layers = new List<ParallaxLayer>();
         private float pulseStrength;
         private float lastSongTimeSec;
@@ -30,7 +29,7 @@ namespace ZebraDash
             public float Width;
             public float Overlap;
             public float BaseY;
-            public float BaseSpeed;
+            public float ScrollRatio;
             public float BobAmp;
             public float BobFreq;
             public float Phase;
@@ -108,7 +107,7 @@ namespace ZebraDash
             hasClockSample = false;
         }
 
-        public void Tick(float songTimeSec, bool isPlaying, float phaseBeat = 0f, float phaseBar = 0f)
+        public void Tick(float songTimeSec, bool isPlaying, float phaseBeat = 0f, float phaseBar = 0f, float worldScrollPos = 0f)
         {
             if (!initialized)
             {
@@ -148,8 +147,9 @@ namespace ZebraDash
                     + (beatPulse * layer.BeatAmp)
                     + (barPulse * layer.BarAmp)
                     + (pulseStrength * layer.AccentAmp);
-                float layerSpeed = layer.BaseSpeed * speedMultiplier * SpeedPulseMultiplier * envelope;
-                layer.ScrollX -= (double)(delta * layerSpeed);
+                float pulseOffset = layer.Width * 0.03f * (envelope - 1f);
+                float layerScroll = worldScrollPos * layer.ScrollRatio * speedMultiplier;
+                layer.ScrollX = -((double)layerScroll + pulseOffset);
                 float wrapRange = Mathf.Max(1f, layer.Width - layer.Overlap);
                 float wrappedX = (float)(-RepeatPositive(layer.ScrollX, wrapRange));
                 wrappedX = Mathf.Round(wrappedX * 512f) / 512f;
@@ -217,7 +217,7 @@ namespace ZebraDash
                 Overlap = 0.22f,
                 ScrollX = 0d,
                 BaseY = y,
-                BaseSpeed = BaseScrollUnitsPerSec * speedRatio,
+                ScrollRatio = Mathf.Max(0.01f, speedRatio),
                 BobAmp = bobAmp,
                 BobFreq = bobFreq,
                 Phase = (layers.Count + 1) * 1.0472f,

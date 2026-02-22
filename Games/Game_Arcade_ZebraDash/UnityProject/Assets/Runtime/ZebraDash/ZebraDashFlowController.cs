@@ -226,7 +226,8 @@ namespace ZebraDash
 
             float phaseBeat = runner != null ? runner.PhaseBeat : 0f;
             float phaseBar = runner != null ? runner.PhaseBar : 0f;
-            parallaxSystem.Tick(songTime, isPlaying, phaseBeat, phaseBar);
+            float worldScrollPos = runner != null ? runner.WorldScrollPos : 0f;
+            parallaxSystem.Tick(songTime, isPlaying, phaseBeat, phaseBar, worldScrollPos);
         }
 
         private IEnumerator LoadCatalogIfNeeded()

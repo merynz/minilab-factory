@@ -30,6 +30,7 @@ namespace ZebraDash
         [SerializeField, Range(2, 4)] private int countdownBeats = 3;
         [SerializeField] private float collisionWindowSec = 0.07f;
         [SerializeField] private float introCollisionGraceSec = 0.95f;
+        [SerializeField] private float worldScrollUnitsPerSec = 14f;
 
         private RunState state = RunState.Idle;
         private float countdownRemaining;
@@ -48,6 +49,8 @@ namespace ZebraDash
         private float worldShiftX;
         private Vector3 baseWorldPosition;
         private Vector3 baseCameraPosition;
+        private float previousSongTimeSec;
+        private bool hasSongTimeSample;
 
         private BeatEvent[] canonicalEvents = Array.Empty<BeatEvent>();
         private BeatEvent[] tapJudgeEvents = Array.Empty<BeatEvent>();
@@ -107,6 +110,8 @@ namespace ZebraDash
         public float BarSec => beatGrid.BarSec;
         public float PhaseBeat => beatGrid.GetPhaseBeat(SongTimeSec);
         public float PhaseBar => beatGrid.GetPhaseBar(SongTimeSec);
+        public float WorldScrollUnitsPerSec => Mathf.Max(0.1f, worldScrollUnitsPerSec);
+        public float WorldScrollPos => SongTimeSec * WorldScrollUnitsPerSec;
         public string HazardMaskBar => BuildCurrentBarHazardMask();
         public string GridDebugLine => BuildCurrentGridDebugLine();
         public string TwoBarPlanDebug => BuildTwoBarPlanDebug();
@@ -188,10 +193,11 @@ namespace ZebraDash
             if (state == RunState.Playing)
             {
                 float songTime = SongTimeSec;
+                float previousSongTime = hasSongTimeSample ? previousSongTimeSec : songTime;
                 playerController?.SetTimingContext(songTime, beatGrid.BeatSec);
                 obstacleSpawner?.Tick(songTime);
                 TickSectionState(songTime);
-                TickHazards(songTime);
+                TickHazards(previousSongTime, songTime);
                 TickAutoMiss(songTime);
                 TickCameraShift(songTime);
 
@@ -199,6 +205,9 @@ namespace ZebraDash
                 {
                     CompleteRun();
                 }
+
+                previousSongTimeSec = songTime;
+                hasSongTimeSample = true;
             }
 
             if (state == RunState.Playing || state == RunState.Paused)
@@ -307,6 +316,8 @@ namespace ZebraDash
             worldShiftX = 0f;
             hazardsArmed = false;
             ResetWorldShift();
+            hasSongTimeSample = false;
+            previousSongTimeSec = 0f;
 
             obstacleSpawner.Configure(activePattern);
             obstacleSpawner.ResetAll();
@@ -392,6 +403,8 @@ namespace ZebraDash
             beatClock.StartClock(audioSource, bpm, activeOffsetSec, activeTrackId);
             playerController?.SetTimingContext(0f, beatGrid.BeatSec);
             playerController.SetInputEnabled(true);
+            hasSongTimeSample = false;
+            previousSongTimeSec = 0f;
             TransitionTo(RunState.Playing);
         }
 
@@ -508,7 +521,7 @@ namespace ZebraDash
             }
         }
 
-        private void TickHazards(float now)
+        private void TickHazards(float previousNow, float now)
         {
             if (!hazardsArmed)
             {
@@ -560,7 +573,7 @@ namespace ZebraDash
                         continue;
                     }
 
-                    if (now >= start && now <= end)
+                    if (IntersectsWindow(previousNow, now, start, end))
                     {
                         bool sameLane = playerController.LaneIndex == lane;
                         if (sameLane)
@@ -584,7 +597,7 @@ namespace ZebraDash
                     continue;
                 }
 
-                if (now <= hitEnd)
+                if (IntersectsWindow(previousNow, now, hazard.HitTimeSec, hitEnd))
                 {
                     if (playerController.LaneIndex == lane)
                     {
@@ -600,6 +613,13 @@ namespace ZebraDash
                     resolvedHazards.Add(i);
                 }
             }
+        }
+
+        private static bool IntersectsWindow(float t0, float t1, float start, float end)
+        {
+            float a = Mathf.Min(t0, t1);
+            float b = Mathf.Max(t0, t1);
+            return b >= start && a <= end;
         }
 
         private void TickSectionState(float now)

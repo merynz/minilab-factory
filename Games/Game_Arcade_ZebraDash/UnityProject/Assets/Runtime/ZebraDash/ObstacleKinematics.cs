@@ -206,10 +206,8 @@ namespace ZebraDash
         private void UpdateVisual(float nowSec)
         {
             float normalized = Mathf.Clamp01((nowSec - spawnTimeSec) / travelTimeSec);
-            float eased = EvaluateTravelEase(normalized);
-            float x = Mathf.Lerp(spawnX, hitX, eased);
-            float y = ResolvePresentationY(nowSec, eased, normalized);
-            float postHitSec = Mathf.Max(0f, nowSec - hitTimeSec);
+            float x = ResolveLinearX(nowSec);
+            float y = ResolvePresentationY(nowSec, normalized);
 
             if (IsHold())
             {
@@ -221,15 +219,13 @@ namespace ZebraDash
             else if (IsFakeout())
             {
                 y += 0.06f * Mathf.Sin((nowSec * 4.4f) + wobbleSeed);
-                transform.localScale = new Vector3(holdWidth, Mathf.Lerp(0.78f, 1.05f, eased), 1f);
-                x = ResolvePostHitX(x, postHitSec, 1.10f);
+                transform.localScale = new Vector3(holdWidth, Mathf.Lerp(0.78f, 1.05f, normalized), 1f);
             }
             else
             {
                 y += 0.08f * Mathf.Sin((nowSec * 8f) + wobbleSeed);
                 float pulse = 1f + (0.22f * (1f - Mathf.Clamp01(Mathf.Abs(nowSec - hitTimeSec) / 0.24f)) * intensity);
                 transform.localScale = new Vector3(holdWidth * pulse, baseScaleY * pulse, 1f);
-                x = ResolvePostHitX(x, postHitSec, 1.15f);
             }
 
             ApplyLifecycleVisual(nowSec);
@@ -247,17 +243,16 @@ namespace ZebraDash
             }
         }
 
-        private float ResolvePostHitX(float currentX, float postHitSec, float speedFactor)
+        private float ResolveLinearX(float nowSec)
         {
-            if (postHitSec <= 0f)
+            if (nowSec <= hitTimeSec)
             {
-                return currentX;
+                float u = Mathf.Clamp01((nowSec - spawnTimeSec) / Mathf.Max(0.0001f, travelTimeSec));
+                return Mathf.Lerp(spawnX, hitX, u);
             }
 
-            // Ramp the post-hit exit movement to preserve exact hitline timing.
-            float ramp = Mathf.Clamp01(postHitSec / 0.08f);
-            float rampEase = ramp * ramp * (3f - (2f * ramp));
-            float distance = postHitSec * travelSpeedX * speedFactor * rampEase;
+            float postHitSec = nowSec - hitTimeSec;
+            float distance = postHitSec * travelSpeedX;
             return hitX - distance;
         }
 
@@ -287,56 +282,33 @@ namespace ZebraDash
             RenderMaterialUtils.ApplyColor(spriteMaterial, new Color(baseColor.r, baseColor.g, baseColor.b, Mathf.Clamp01(alpha)));
         }
 
-        private float ResolvePresentationY(float nowSec, float eased, float raw)
+        private float ResolvePresentationY(float nowSec, float normalized)
         {
             float y = laneY;
             if (string.Equals(presentation, GameplayPresentationKinds.Diagonal, System.StringComparison.OrdinalIgnoreCase))
             {
-                y += Mathf.Lerp(presentationYOffset, 0f, eased);
+                y += presentationYOffset * (1f - normalized);
             }
             else if (string.Equals(presentation, GameplayPresentationKinds.Drop, System.StringComparison.OrdinalIgnoreCase))
             {
-                float dropEase = 1f - Mathf.Pow(1f - eased, 1.8f);
-                y += Mathf.Lerp(presentationYOffset, 0f, dropEase);
+                y += presentationYOffset * (1f - normalized);
             }
             else if (string.Equals(presentation, GameplayPresentationKinds.Rise, System.StringComparison.OrdinalIgnoreCase))
             {
-                float riseEase = eased * eased;
-                y -= Mathf.Lerp(presentationYOffset * 0.85f, 0f, riseEase);
+                y -= (presentationYOffset * 0.85f) * (1f - normalized);
             }
             else if (string.Equals(presentation, GameplayPresentationKinds.Pop, System.StringComparison.OrdinalIgnoreCase))
             {
-                float popEase = Mathf.SmoothStep(0f, 1f, raw);
-                y -= Mathf.Lerp(presentationYOffset * 0.55f, 0f, popEase);
+                y -= (presentationYOffset * 0.55f) * (1f - normalized);
             }
 
             // Always snap the lane at hit time to keep gameplay deterministic.
-            if (Mathf.Abs(nowSec - hitTimeSec) <= 0.0005f || raw >= 0.999f)
+            if (Mathf.Abs(nowSec - hitTimeSec) <= 0.0005f || normalized >= 0.999f)
             {
                 return laneY;
             }
 
             return y;
-        }
-
-        private float EvaluateTravelEase(float u)
-        {
-            // Base cubic in-out keeps motion deterministic and readable at varying FPS.
-            float eased = u < 0.5f
-                ? 4f * u * u * u
-                : 1f - (Mathf.Pow(-2f * u + 2f, 3f) * 0.5f);
-
-            if (string.Equals(presentation, GameplayPresentationKinds.Drop, System.StringComparison.OrdinalIgnoreCase))
-            {
-                return Mathf.Clamp01(Mathf.Lerp(eased, 1f - Mathf.Pow(1f - u, 2.2f), 0.45f));
-            }
-
-            if (string.Equals(presentation, GameplayPresentationKinds.Pop, System.StringComparison.OrdinalIgnoreCase))
-            {
-                return Mathf.Clamp01(Mathf.Lerp(eased, Mathf.SmoothStep(0f, 1f, u), 0.35f));
-            }
-
-            return eased;
         }
 
         private static float ResolvePresentationYOffset(string presentationKind, float eventIntensity, int seed)

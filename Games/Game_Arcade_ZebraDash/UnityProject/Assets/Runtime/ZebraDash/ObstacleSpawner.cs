@@ -234,7 +234,7 @@ namespace ZebraDash
         private float ResolveTravelTime(GameplayPatternEvent evt)
         {
             float beatSec = levelRunner != null ? Mathf.Max(0.0001f, levelRunner.BeatSec) : 0.5f;
-            float minVisibleSec = Mathf.Clamp(0.90f * beatSec, 0.45f, 0.85f);
+            float minVisibleSec = Mathf.Clamp(1.00f * beatSec, 0.60f, 0.95f);
             if (evt != null && evt.travelTimeSec > 0.01f)
             {
                 return Mathf.Max(evt.travelTimeSec, minVisibleSec);
