@@ -12,8 +12,13 @@ namespace ZebraDash
         private const float MazeHalfHeight = 5.4f;
         private const float MazeGapHalf = 1.75f;
         private const float MazeRibWidth = 0.20f;
+        private const int DustStreakCount = 30;
+        private const float DustScrollRatio = 0.86f;
+        private const float DustFieldHalfWidth = 23f;
+        private const float DustFieldHalfHeight = 4.8f;
         private readonly List<ParallaxLayer> layers = new List<ParallaxLayer>();
         private readonly List<MazeRib> mazeRibs = new List<MazeRib>(MazeRibCount);
+        private readonly List<DustStreak> dustStreaks = new List<DustStreak>(DustStreakCount);
         private float pulseStrength;
         private float lastSongTimeSec;
         private float speedMultiplier = 1f;
@@ -22,12 +27,21 @@ namespace ZebraDash
         private float bobMultiplierTarget = 1f;
         private float beatPulse;
         private float barPulse;
+        private float subPulseStrength;
+        private float beatTickStrength;
+        private float barTickStrength;
+        private float phrasePulseStrength;
         private bool initialized;
         private bool hasClockSample;
         private Transform layerRoot;
+        private int lastSubIndex = int.MinValue;
+        private int lastBeatIndex = int.MinValue;
+        private int lastBarIndex = int.MinValue;
+        private int lastPhraseIndex = int.MinValue;
 
         public float SpeedPulseMultiplier { get; private set; } = 1f;
         public float EmissivePulseMultiplier { get; private set; } = 1f;
+        public float WarpPulseMultiplier { get; private set; } = 1f;
 
         private sealed class ParallaxLayer
         {
@@ -51,10 +65,25 @@ namespace ZebraDash
         {
             public Transform Top;
             public Transform Bottom;
+            public Transform TopLight;
+            public Transform BottomLight;
             public Material TopMaterial;
             public Material BottomMaterial;
+            public Material TopLightMaterial;
+            public Material BottomLightMaterial;
             public float Phase;
             public float Offset;
+        }
+
+        private sealed class DustStreak
+        {
+            public Transform Visual;
+            public Material Material;
+            public float Phase;
+            public float BaseY;
+            public float Length;
+            public float Width;
+            public float DriftAmp;
         }
 
         public void Initialize(Transform parentRoot)
@@ -120,12 +149,17 @@ namespace ZebraDash
                 barAmp: 0.040f,
                 accentAmp: 0.12f);
             BuildSpaceMaze();
+            BuildDustField();
 
             initialized = true;
             hasClockSample = false;
+            lastSubIndex = int.MinValue;
+            lastBeatIndex = int.MinValue;
+            lastBarIndex = int.MinValue;
+            lastPhraseIndex = int.MinValue;
         }
 
-        public void Tick(float songTimeSec, bool isPlaying, float phaseBeat = 0f, float phaseBar = 0f, float worldScrollPos = 0f)
+        public void Tick(float songTimeSec, bool isPlaying, float phaseBeat = 0f, float phaseBar = 0f, float worldScrollPos = 0f, float beatSec = 0.5f)
         {
             if (!initialized)
             {
@@ -150,13 +184,27 @@ namespace ZebraDash
                 delta = Time.unscaledDeltaTime;
             }
 
+            if (isPlaying)
+            {
+                TickVisualGrid(songTimeSec, beatSec);
+            }
+
             pulseStrength = Mathf.MoveTowards(pulseStrength, 0f, delta * 2.2f);
+            subPulseStrength = Mathf.MoveTowards(subPulseStrength, 0f, delta * 6.4f);
+            beatTickStrength = Mathf.MoveTowards(beatTickStrength, 0f, delta * 5.0f);
+            barTickStrength = Mathf.MoveTowards(barTickStrength, 0f, delta * 3.5f);
+            phrasePulseStrength = Mathf.MoveTowards(phrasePulseStrength, 0f, delta * 2.4f);
             speedMultiplier = Mathf.MoveTowards(speedMultiplier, speedMultiplierTarget, delta * 1.6f);
             bobMultiplier = Mathf.MoveTowards(bobMultiplier, bobMultiplierTarget, delta * 1.6f);
             beatPulse = PulseEnvelope(phaseBeat, 0.12f);
             barPulse = PulseEnvelope(phaseBar, 0.18f);
-            SpeedPulseMultiplier = 1f + (beatPulse * 0.04f) + (barPulse * 0.02f) + (pulseStrength * 0.03f);
-            EmissivePulseMultiplier = 1f + (beatPulse * 0.38f) + (pulseStrength * 0.52f);
+            float gridPulse = (subPulseStrength * 0.12f)
+                + (beatTickStrength * 0.25f)
+                + (barTickStrength * 0.38f)
+                + (phrasePulseStrength * 0.55f);
+            SpeedPulseMultiplier = 1f + (beatPulse * 0.04f) + (barPulse * 0.02f) + (pulseStrength * 0.03f) + (gridPulse * 0.05f);
+            EmissivePulseMultiplier = 1f + (beatPulse * 0.32f) + (barPulse * 0.20f) + (pulseStrength * 0.45f) + (gridPulse * 0.55f);
+            WarpPulseMultiplier = 1f + (barTickStrength * 0.28f) + (phrasePulseStrength * 0.90f);
 
             for (int i = 0; i < layers.Count; i++)
             {
@@ -164,7 +212,8 @@ namespace ZebraDash
                 float envelope = 1f
                     + (beatPulse * layer.BeatAmp)
                     + (barPulse * layer.BarAmp)
-                    + (pulseStrength * layer.AccentAmp);
+                    + (pulseStrength * layer.AccentAmp)
+                    + (gridPulse * layer.AccentAmp * 0.55f);
                 float pulseOffset = layer.Width * 0.03f * (envelope - 1f);
                 float layerScroll = worldScrollPos * layer.ScrollRatio * speedMultiplier;
                 layer.ScrollX = -((double)layerScroll + pulseOffset);
@@ -181,11 +230,32 @@ namespace ZebraDash
             }
 
             TickSpaceMaze(songTimeSec, worldScrollPos);
+            TickDustField(songTimeSec, worldScrollPos);
         }
 
         public void PushAccent(float intensity)
         {
             pulseStrength = Mathf.Max(pulseStrength, Mathf.Lerp(0.16f, 0.55f, Mathf.Clamp01(intensity)));
+        }
+
+        public void PushSubTick(float intensity = 0.2f)
+        {
+            subPulseStrength = Mathf.Max(subPulseStrength, Mathf.Lerp(0.06f, 0.20f, Mathf.Clamp01(intensity)));
+        }
+
+        public void PushBeatTick(float intensity = 0.3f)
+        {
+            beatTickStrength = Mathf.Max(beatTickStrength, Mathf.Lerp(0.12f, 0.34f, Mathf.Clamp01(intensity)));
+        }
+
+        public void PushBarPulse(float intensity = 0.5f)
+        {
+            barTickStrength = Mathf.Max(barTickStrength, Mathf.Lerp(0.18f, 0.50f, Mathf.Clamp01(intensity)));
+        }
+
+        public void PushPhraseWarp(float intensity = 0.7f)
+        {
+            phrasePulseStrength = Mathf.Max(phrasePulseStrength, Mathf.Lerp(0.25f, 0.90f, Mathf.Clamp01(intensity)));
         }
 
         public void SetSectionMood(string sectionType, float currentStrain, float targetStrain)
@@ -209,6 +279,40 @@ namespace ZebraDash
             bobMultiplierTarget = Mathf.Lerp(0.95f, 1.05f, blend);
         }
 
+        private void TickVisualGrid(float songTimeSec, float beatSec)
+        {
+            float safeBeatSec = Mathf.Max(0.0001f, beatSec);
+            float subSec = Mathf.Max(0.0125f, safeBeatSec * 0.25f);
+
+            int subIndex = Mathf.FloorToInt(songTimeSec / subSec);
+            if (subIndex != lastSubIndex)
+            {
+                lastSubIndex = subIndex;
+                PushSubTick(0.22f);
+            }
+
+            int beatIndex = Mathf.FloorToInt(songTimeSec / safeBeatSec);
+            if (beatIndex != lastBeatIndex)
+            {
+                lastBeatIndex = beatIndex;
+                PushBeatTick(0.30f);
+            }
+
+            int barIndex = Mathf.FloorToInt(songTimeSec / (safeBeatSec * 4f));
+            if (barIndex != lastBarIndex)
+            {
+                lastBarIndex = barIndex;
+                PushBarPulse(0.56f);
+            }
+
+            int phraseIndex = Mathf.FloorToInt(songTimeSec / (safeBeatSec * 8f));
+            if (phraseIndex != lastPhraseIndex)
+            {
+                lastPhraseIndex = phraseIndex;
+                PushPhraseWarp(0.72f);
+            }
+        }
+
         private static float PulseEnvelope(float phase, float width)
         {
             float p = Mathf.Repeat(phase, 1f);
@@ -229,12 +333,18 @@ namespace ZebraDash
                 Color bottomColor = new Color(0.20f, 0.44f, 0.66f, 0.17f);
                 Transform top = CreateMazeSegment($"MazeRibTop_{i}", topY, ribHeight, topColor, -9);
                 Transform bottom = CreateMazeSegment($"MazeRibBottom_{i}", bottomY, ribHeight, bottomColor, -9);
+                Transform topLight = CreateMazeSegment($"MazeRibTopLight_{i}", topY, 0.38f, new Color(0.36f, 0.92f, 1f, 0.25f), -7);
+                Transform bottomLight = CreateMazeSegment($"MazeRibBottomLight_{i}", bottomY, 0.38f, new Color(1f, 0.48f, 0.88f, 0.25f), -7);
                 var rib = new MazeRib
                 {
                     Top = top,
                     Bottom = bottom,
+                    TopLight = topLight,
+                    BottomLight = bottomLight,
                     TopMaterial = top != null ? top.GetComponent<Renderer>()?.material : null,
                     BottomMaterial = bottom != null ? bottom.GetComponent<Renderer>()?.material : null,
+                    TopLightMaterial = topLight != null ? topLight.GetComponent<Renderer>()?.material : null,
+                    BottomLightMaterial = bottomLight != null ? bottomLight.GetComponent<Renderer>()?.material : null,
                     Phase = i * 0.42f,
                     Offset = ((i % 3) - 1) * 0.13f
                 };
@@ -256,6 +366,7 @@ namespace ZebraDash
             float minX = -totalWidth * 0.5f;
             float maxX = totalWidth * 0.5f;
             float pulseEnvelope = (beatPulse * 0.12f) + (barPulse * 0.07f) + (pulseStrength * 0.12f);
+            float laneLightEnvelope = (beatTickStrength * 0.32f) + (barTickStrength * 0.42f) + (phrasePulseStrength * 0.56f);
             float widthScale = 1f + pulseEnvelope;
 
             for (int i = 0; i < mazeRibs.Count; i++)
@@ -280,6 +391,22 @@ namespace ZebraDash
                     rib.Bottom.localScale = new Vector3(MazeRibWidth * widthScale, ribHeight, 1f);
                 }
 
+                float lightSweep01 = Mathf.Repeat((songTimeSec * (0.95f + (beatPulse * 0.45f))) + rib.Phase, 1f);
+                float lightYOffset = Mathf.Lerp(-ribHeight * 0.45f, ribHeight * 0.45f, lightSweep01);
+                float lightWidth = Mathf.Lerp(0.10f, 0.24f, 0.45f + (0.55f * laneLightEnvelope));
+                float lightAlpha = Mathf.Clamp01(0.22f + (laneLightEnvelope * 0.65f));
+                if (rib.TopLight != null)
+                {
+                    rib.TopLight.localPosition = new Vector3(x, topY + lightYOffset, -5.7f);
+                    rib.TopLight.localScale = new Vector3(lightWidth, 0.34f, 1f);
+                }
+
+                if (rib.BottomLight != null)
+                {
+                    rib.BottomLight.localPosition = new Vector3(x, bottomY - lightYOffset, -5.7f);
+                    rib.BottomLight.localScale = new Vector3(lightWidth, 0.34f, 1f);
+                }
+
                 float alpha = Mathf.Clamp01(0.12f + (pulseEnvelope * 0.55f));
                 if (rib.TopMaterial != null)
                 {
@@ -289,6 +416,82 @@ namespace ZebraDash
                 if (rib.BottomMaterial != null)
                 {
                     RenderMaterialUtils.ApplyColor(rib.BottomMaterial, new Color(0.20f, 0.44f, 0.66f, alpha * 0.95f));
+                }
+
+                if (rib.TopLightMaterial != null)
+                {
+                    RenderMaterialUtils.ApplyColor(rib.TopLightMaterial, new Color(0.36f, 0.92f, 1f, lightAlpha));
+                }
+
+                if (rib.BottomLightMaterial != null)
+                {
+                    RenderMaterialUtils.ApplyColor(rib.BottomLightMaterial, new Color(1f, 0.48f, 0.88f, lightAlpha * 0.95f));
+                }
+            }
+        }
+
+        private void BuildDustField()
+        {
+            dustStreaks.Clear();
+            for (int i = 0; i < DustStreakCount; i++)
+            {
+                float t = (i + 1f) / (DustStreakCount + 1f);
+                float y = Mathf.Lerp(-DustFieldHalfHeight, DustFieldHalfHeight, t);
+                float width = Mathf.Lerp(0.05f, 0.10f, Mathf.PingPong((i * 0.17f), 1f));
+                float length = Mathf.Lerp(0.35f, 1.35f, Mathf.PingPong((i * 0.31f), 1f));
+                Transform streak = CreateMazeSegment(
+                    $"Dust_{i}",
+                    y,
+                    width,
+                    new Color(0.70f, 0.95f, 1f, 0.08f),
+                    -6);
+                if (streak != null)
+                {
+                    streak.localScale = new Vector3(length, width, 1f);
+                }
+
+                dustStreaks.Add(new DustStreak
+                {
+                    Visual = streak,
+                    Material = streak != null ? streak.GetComponent<Renderer>()?.material : null,
+                    Phase = i * 0.61f,
+                    BaseY = y,
+                    Length = length,
+                    Width = width,
+                    DriftAmp = Mathf.Lerp(0.10f, 0.40f, Mathf.PingPong(i * 0.27f, 1f))
+                });
+            }
+        }
+
+        private void TickDustField(float songTimeSec, float worldScrollPos)
+        {
+            if (dustStreaks.Count == 0)
+            {
+                return;
+            }
+
+            float minX = -DustFieldHalfWidth;
+            float maxX = DustFieldHalfWidth;
+            float beatEnvelope = (beatPulse * 0.12f) + (subPulseStrength * 0.18f) + (barTickStrength * 0.22f);
+            float phraseEnvelope = phrasePulseStrength * 0.38f;
+            for (int i = 0; i < dustStreaks.Count; i++)
+            {
+                DustStreak streak = dustStreaks[i];
+                if (streak.Visual == null)
+                {
+                    continue;
+                }
+
+                float baseX = (i * 1.43f) + (streak.Phase * 1.7f);
+                float x = RepeatRange(baseX - (worldScrollPos * DustScrollRatio * SpeedPulseMultiplier), minX, maxX);
+                float y = streak.BaseY + Mathf.Sin((songTimeSec * 0.95f) + streak.Phase) * streak.DriftAmp;
+                float length = streak.Length * (1f + (beatEnvelope * 0.45f) + (phraseEnvelope * 0.35f));
+                streak.Visual.localPosition = new Vector3(x, y, -5.45f);
+                streak.Visual.localScale = new Vector3(length, streak.Width, 1f);
+                if (streak.Material != null)
+                {
+                    float alpha = Mathf.Clamp01(0.05f + (beatEnvelope * 0.28f) + (phraseEnvelope * 0.40f));
+                    RenderMaterialUtils.ApplyColor(streak.Material, new Color(0.70f, 0.95f, 1f, alpha));
                 }
             }
         }

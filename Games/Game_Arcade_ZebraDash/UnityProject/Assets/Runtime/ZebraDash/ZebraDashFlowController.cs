@@ -40,6 +40,7 @@ namespace ZebraDash
         private Text countdownText;
         private GameObject pausePanel;
         private Image pulseOverlay;
+        private Image warpOverlay;
         private Rect lastSafeArea = new Rect(0f, 0f, -1f, -1f);
         private Vector2Int lastScreenSize = Vector2Int.zero;
         private bool safeAreaFallbackLogged;
@@ -59,11 +60,15 @@ namespace ZebraDash
         private Renderer hitLineRenderer;
 
         private float screenPulse;
+        private float warpPulse;
         private float resultsDelay;
         private bool resultSceneQueued;
         private readonly List<float> accentHitTimes = new List<float>();
         private int nextAccentIndex;
+        private int lastSubVisualIndex = int.MinValue;
         private int lastBeatVisualIndex = int.MinValue;
+        private int lastBarVisualIndex = int.MinValue;
+        private int lastPhraseVisualIndex = int.MinValue;
         private bool debugOverlayVisible = true;
 
         private ResultSnapshot lastResult;
@@ -232,7 +237,8 @@ namespace ZebraDash
             float phaseBeat = runner != null ? runner.PhaseBeat : 0f;
             float phaseBar = runner != null ? runner.PhaseBar : 0f;
             float worldScrollPos = runner != null ? runner.WorldScrollPos : 0f;
-            parallaxSystem.Tick(songTime, isPlaying, phaseBeat, phaseBar, worldScrollPos);
+            float beatSec = runner != null ? runner.BeatSec : 0.5f;
+            parallaxSystem.Tick(songTime, isPlaying, phaseBeat, phaseBar, worldScrollPos, beatSec);
         }
 
         private IEnumerator LoadCatalogIfNeeded()
@@ -417,10 +423,15 @@ namespace ZebraDash
             pausePanel.SetActive(false);
 
             pulseOverlay = CreateImage(new Vector2(0.5f, 0.5f), new Vector2(3000f, 3000f), new Color(1f, 1f, 1f, 0f));
+            warpOverlay = CreateImage(new Vector2(0.5f, 0.5f), new Vector2(3000f, 3000f), new Color(0.32f, 0.72f, 1f, 0f));
 
             resultSceneQueued = false;
             nextAccentIndex = 0;
             accentHitTimes.Clear();
+            lastSubVisualIndex = int.MinValue;
+            lastBeatVisualIndex = int.MinValue;
+            lastBarVisualIndex = int.MinValue;
+            lastPhraseVisualIndex = int.MinValue;
             StartCoroutine(StartSelectedTrack());
         }
 
@@ -556,6 +567,7 @@ namespace ZebraDash
             while (nextAccentIndex < accentHitTimes.Count && songTime >= accentHitTimes[nextAccentIndex])
             {
                 screenPulse = Mathf.Max(screenPulse, 0.45f);
+                warpPulse = Mathf.Max(warpPulse, 0.22f);
                 parallaxSystem?.PushAccent(0.9f);
                 nextAccentIndex++;
             }
@@ -563,15 +575,30 @@ namespace ZebraDash
 
         private void TickPulseOverlay()
         {
-            if (pulseOverlay == null)
+            if (pulseOverlay == null && warpOverlay == null)
             {
                 return;
             }
 
             screenPulse = Mathf.MoveTowards(screenPulse, 0f, Time.unscaledDeltaTime * 1.8f);
-            Color c = pulseOverlay.color;
-            c.a = screenPulse * 0.24f;
-            pulseOverlay.color = c;
+            warpPulse = Mathf.MoveTowards(warpPulse, 0f, Time.unscaledDeltaTime * 1.15f);
+
+            if (pulseOverlay != null)
+            {
+                Color c = pulseOverlay.color;
+                c.a = screenPulse * 0.24f;
+                pulseOverlay.color = c;
+            }
+
+            if (warpOverlay != null)
+            {
+                float phaseBeat = runner != null ? runner.PhaseBeat : 0f;
+                float beatWave = PulseEnvelope(phaseBeat, 0.11f) * 0.08f;
+                float warpBoost = parallaxSystem != null ? Mathf.Max(0f, parallaxSystem.WarpPulseMultiplier - 1f) : 0f;
+                Color c = warpOverlay.color;
+                c.a = Mathf.Clamp01((warpPulse * 0.20f) + (warpBoost * 0.08f) + beatWave);
+                warpOverlay.color = c;
+            }
         }
 
         private string BuildHudLine()
@@ -597,7 +624,7 @@ namespace ZebraDash
                 $"Mask16: {runner.HazardMaskBar}\n" +
                 $"Judge: {runner.LastJudge}   Combo: {runner.Combo}   Score: {runner.Score}   P/G/M: {runner.PerfectCount}/{runner.GoodCount}/{runner.MissCount}\n" +
                 $"Section: {runner.CurrentSectionState} ({runner.CurrentStrain:F2}/{runner.TargetStrain:F2}) preset:{runner.CurrentPresetId}   " +
-                $"Parallax x{(parallaxSystem != null ? parallaxSystem.SpeedPulseMultiplier : 1f):F2} emx{(parallaxSystem != null ? parallaxSystem.EmissivePulseMultiplier : 1f):F2}   " +
+                $"Parallax x{(parallaxSystem != null ? parallaxSystem.SpeedPulseMultiplier : 1f):F2} emx{(parallaxSystem != null ? parallaxSystem.EmissivePulseMultiplier : 1f):F2} warpx{(parallaxSystem != null ? parallaxSystem.WarpPulseMultiplier : 1f):F2}   " +
                 $"Scroll:{runner.WorldScrollPos:F1}@{runner.WorldScrollUnitsPerSec:F1}   Telegraph:{telegraphText}\n" +
                 $"Next: {runner.NextHazardsDebug}\n" +
                 $"{runner.GridDebugLine}\n" +
@@ -696,6 +723,7 @@ namespace ZebraDash
             countdownText = null;
             pausePanel = null;
             pulseOverlay = null;
+            warpOverlay = null;
         }
 
         private void EnsureSafeAreaRoot()
@@ -814,7 +842,10 @@ namespace ZebraDash
             laneLowerRenderer = null;
             laneUpperRenderer = null;
             hitLineRenderer = null;
+            lastSubVisualIndex = int.MinValue;
             lastBeatVisualIndex = int.MinValue;
+            lastBarVisualIndex = int.MinValue;
+            lastPhraseVisualIndex = int.MinValue;
 
             if (runtimeRoot != null)
             {
@@ -965,15 +996,44 @@ namespace ZebraDash
                 return;
             }
 
+            float beatSec = Mathf.Max(0.0001f, runner.BeatSec);
+            float subSec = Mathf.Max(0.0125f, beatSec * 0.25f);
+            int subIndex = Mathf.FloorToInt(runner.SongTimeSec / subSec);
+            if (subIndex != lastSubVisualIndex)
+            {
+                lastSubVisualIndex = subIndex;
+                parallaxSystem?.PushSubTick(0.22f);
+            }
+
             int beatIndex = runner.CurrentBeat;
             if (beatIndex == lastBeatVisualIndex)
             {
-                return;
+                // Continue; bar/phrase checks can still advance when scene starts.
+            }
+            else
+            {
+                lastBeatVisualIndex = beatIndex;
+                screenPulse = Mathf.Max(screenPulse, 0.12f);
+                parallaxSystem?.PushBeatTick(0.30f);
+                parallaxSystem?.PushAccent(0.20f);
             }
 
-            lastBeatVisualIndex = beatIndex;
-            screenPulse = Mathf.Max(screenPulse, 0.12f);
-            parallaxSystem?.PushAccent(0.20f);
+            int barIndex = runner.CurrentBar;
+            if (barIndex != lastBarVisualIndex)
+            {
+                lastBarVisualIndex = barIndex;
+                screenPulse = Mathf.Max(screenPulse, 0.16f);
+                warpPulse = Mathf.Max(warpPulse, 0.18f);
+                parallaxSystem?.PushBarPulse(0.52f);
+            }
+
+            int phraseIndex = Mathf.FloorToInt(barIndex / 2f);
+            if (phraseIndex != lastPhraseVisualIndex)
+            {
+                lastPhraseVisualIndex = phraseIndex;
+                warpPulse = Mathf.Max(warpPulse, 0.30f);
+                parallaxSystem?.PushPhraseWarp(0.74f);
+            }
         }
 
         private static void ApplyPulseColor(Renderer renderer, Color baseColor, float beatPulse, float accentScale, float amp)

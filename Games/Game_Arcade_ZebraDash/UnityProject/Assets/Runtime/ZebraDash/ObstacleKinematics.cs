@@ -34,6 +34,10 @@ namespace ZebraDash
         private bool hitLineVerified;
         private Transform holdTelegraph;
         private Renderer holdTelegraphRenderer;
+        private Transform tetherTelegraph;
+        private Renderer tetherTelegraphRenderer;
+        private Transform floorTelegraph;
+        private Renderer floorTelegraphRenderer;
         private SpriteRenderer spriteRenderer;
         private Material spriteMaterial;
         private Color baseColor = Color.white;
@@ -96,6 +100,8 @@ namespace ZebraDash
                 }
             }
 
+            EnsurePresentationTelegraphs();
+
             if (IsHold())
             {
                 float span = Mathf.Max(0.2f, endTimeSec - hitTimeSec);
@@ -107,6 +113,7 @@ namespace ZebraDash
                 {
                     holdTelegraph.gameObject.SetActive(true);
                 }
+                SetAuxTelegraphState(showTether: false, showFloor: true);
                 despawnGraceSec = postHitSec;
             }
             else if (IsFakeout())
@@ -118,6 +125,7 @@ namespace ZebraDash
                 {
                     holdTelegraph.gameObject.SetActive(false);
                 }
+                SetAuxTelegraphState(showTether: false, showFloor: false);
                 despawnGraceSec = postHitSec;
             }
             else
@@ -130,6 +138,11 @@ namespace ZebraDash
                 {
                     holdTelegraph.gameObject.SetActive(false);
                 }
+                bool diagonalLike = string.Equals(presentation, GameplayPresentationKinds.Diagonal, System.StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(presentation, GameplayPresentationKinds.Rise, System.StringComparison.OrdinalIgnoreCase);
+                bool dropLike = string.Equals(presentation, GameplayPresentationKinds.Drop, System.StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(presentation, GameplayPresentationKinds.Pop, System.StringComparison.OrdinalIgnoreCase);
+                SetAuxTelegraphState(showTether: diagonalLike, showFloor: dropLike);
                 despawnGraceSec = postHitSec;
             }
 
@@ -193,6 +206,16 @@ namespace ZebraDash
                 holdTelegraph.gameObject.SetActive(false);
             }
 
+            if (tetherTelegraph != null)
+            {
+                tetherTelegraph.gameObject.SetActive(false);
+            }
+
+            if (floorTelegraph != null)
+            {
+                floorTelegraph.gameObject.SetActive(false);
+            }
+
             if (spriteMaterial != null)
             {
                 RenderMaterialUtils.ApplyColor(spriteMaterial, new Color(baseColor.r, baseColor.g, baseColor.b, 1f));
@@ -227,6 +250,8 @@ namespace ZebraDash
                 float pulse = 1f + (0.22f * (1f - Mathf.Clamp01(Mathf.Abs(nowSec - hitTimeSec) / 0.24f)) * intensity);
                 transform.localScale = new Vector3(holdWidth * pulse, baseScaleY * pulse, 1f);
             }
+
+            UpdateAuxTelegraphs(nowSec, normalized, x, y);
 
             ApplyLifecycleVisual(nowSec);
 
@@ -347,6 +372,58 @@ namespace ZebraDash
             holdTelegraph = go.transform;
         }
 
+        private void EnsurePresentationTelegraphs()
+        {
+            if (tetherTelegraph == null)
+            {
+                GameObject tether = RuntimeSpriteFactory.Create(
+                    "TetherTelegraph",
+                    transform,
+                    new Vector3(0f, 1.2f, -0.04f),
+                    new Vector3(0.08f, 2.2f, 1f),
+                    sortingOrder: 15);
+                tetherTelegraphRenderer = tether.GetComponent<Renderer>();
+                if (tetherTelegraphRenderer != null)
+                {
+                    tetherTelegraphRenderer.material = RenderMaterialUtils.CreateSolidMaterial(new Color(0.40f, 0.95f, 1f, 0.22f), true);
+                }
+
+                tetherTelegraph = tether.transform;
+                tetherTelegraph.gameObject.SetActive(false);
+            }
+
+            if (floorTelegraph == null)
+            {
+                GameObject floor = RuntimeSpriteFactory.Create(
+                    "FloorTelegraph",
+                    transform,
+                    new Vector3(0f, -1.0f, -0.04f),
+                    new Vector3(1.45f, 0.14f, 1f),
+                    sortingOrder: 15);
+                floorTelegraphRenderer = floor.GetComponent<Renderer>();
+                if (floorTelegraphRenderer != null)
+                {
+                    floorTelegraphRenderer.material = RenderMaterialUtils.CreateSolidMaterial(new Color(1f, 0.62f, 0.28f, 0.24f), true);
+                }
+
+                floorTelegraph = floor.transform;
+                floorTelegraph.gameObject.SetActive(false);
+            }
+        }
+
+        private void SetAuxTelegraphState(bool showTether, bool showFloor)
+        {
+            if (tetherTelegraph != null)
+            {
+                tetherTelegraph.gameObject.SetActive(showTether);
+            }
+
+            if (floorTelegraph != null)
+            {
+                floorTelegraph.gameObject.SetActive(showFloor);
+            }
+        }
+
         private void UpdateHoldTelegraph(float nowSec)
         {
             if (holdTelegraph == null)
@@ -366,6 +443,38 @@ namespace ZebraDash
                 float pulse = 0.65f + (0.35f * Mathf.Sin((nowSec * 18f) + wobbleSeed));
                 float alpha = Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(releasePhase * pulse));
                 RenderMaterialUtils.ApplyColor(holdTelegraphRenderer.material, new Color(1f, 0.92f, 0.35f, alpha));
+            }
+        }
+
+        private void UpdateAuxTelegraphs(float nowSec, float normalized, float x, float y)
+        {
+            float lead01 = Mathf.Clamp01(1f - normalized);
+            if (tetherTelegraph != null && tetherTelegraph.gameObject.activeSelf)
+            {
+                Vector3 localEnd = new Vector3(0f, 0f, -0.04f);
+                Vector3 localStart = new Vector3(Mathf.Lerp(-1.2f, -0.4f, normalized), Mathf.Lerp(2.2f, 1.1f, normalized), -0.04f);
+                Vector3 delta = localEnd - localStart;
+                float len = Mathf.Max(0.02f, delta.magnitude);
+                tetherTelegraph.localPosition = localStart + (delta * 0.5f);
+                tetherTelegraph.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg - 90f);
+                tetherTelegraph.localScale = new Vector3(0.07f, len, 1f);
+                if (tetherTelegraphRenderer != null && tetherTelegraphRenderer.material != null)
+                {
+                    float alpha = Mathf.Clamp01(0.10f + (lead01 * 0.24f));
+                    RenderMaterialUtils.ApplyColor(tetherTelegraphRenderer.material, new Color(0.40f, 0.95f, 1f, alpha));
+                }
+            }
+
+            if (floorTelegraph != null && floorTelegraph.gameObject.activeSelf)
+            {
+                float sweep = Mathf.Sin((nowSec * 12f) + wobbleSeed) * 0.10f;
+                floorTelegraph.localPosition = new Vector3(0f, Mathf.Lerp(-1.6f, -0.1f, normalized) + sweep, -0.04f);
+                floorTelegraph.localScale = new Vector3(Mathf.Lerp(1.75f, 1.05f, normalized), 0.16f, 1f);
+                if (floorTelegraphRenderer != null && floorTelegraphRenderer.material != null)
+                {
+                    float alpha = Mathf.Clamp01(0.08f + (lead01 * 0.35f));
+                    RenderMaterialUtils.ApplyColor(floorTelegraphRenderer.material, new Color(1f, 0.62f, 0.28f, alpha));
+                }
             }
         }
 
