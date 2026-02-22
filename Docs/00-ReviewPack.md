@@ -1,8 +1,8 @@
 # 00 - Review Pack
 
 - Repo: https://github.com/merynz/minilab-factory
-- PR: `to be filled after push`
-- Commit: `to be filled after push`
+- PR: `https://github.com/merynz/minilab-factory/pull/new/milestone-2-polish`
+- Commit: `d63f1b0`
 - Unity detected version: `6000.2.6f2 (C:\Program Files\Unity\Hub\Editor\6000.2.6f2\Editor\Unity.exe)`
 
 ## PASS / FAIL / SKIP
