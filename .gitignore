@@ -27,6 +27,10 @@ BuildArtifacts/
 Thumbs.db
 .idea/
 .vscode/
+.tmp/
+tmp/
+.utmp/
+.gradle/
 
 # Fastlane secrets
 fastlane/.env*
@@ -41,3 +45,6 @@ GoogleService-Info.plist
 google-services.json
 *.key
 *.token
+
+# Local audio workspace (not committed)
+Games/*/AudioLocal/

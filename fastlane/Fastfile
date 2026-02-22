@@ -1,36 +1,65 @@
 default_platform(:ios)
 
 platform :android do
-  desc "Upload AAB to Google Play Internal Testing"
+  desc "Upload AAB to Google Play Internal Testing (requires GOOGLE_PLAY_JSON_KEY_PATH)"
   lane :internal do
     aab_path = ENV["MINILAB_ANDROID_AAB_PATH"]
     package_name = ENV["MINILAB_ANDROID_PACKAGE_NAME"]
     track_name = ENV["MINILAB_ANDROID_TRACK"] || "internal"
+    json_key_path = ENV["MINILAB_PLAY_JSON"] || ENV["GOOGLE_PLAY_JSON_KEY_PATH"] || ENV["SUPPLY_JSON_KEY"]
 
     UI.user_error!("MINILAB_ANDROID_AAB_PATH is required") if aab_path.to_s.empty?
     UI.user_error!("MINILAB_ANDROID_PACKAGE_NAME is required") if package_name.to_s.empty?
+    UI.user_error!("Play JSON key path is required (MINILAB_PLAY_JSON)") if json_key_path.to_s.empty?
 
     upload_to_play_store(
       package_name: package_name,
       aab: aab_path,
+      json_key: json_key_path,
       track: track_name,
       skip_upload_images: true,
       skip_upload_screenshots: true,
       skip_upload_metadata: true
     )
+
+    UI.success("Android internal upload completed: #{aab_path}")
   end
 end
 
 platform :ios do
-  desc "Upload IPA to TestFlight internal"
+  desc "Build IPA archive from exported Unity Xcode project"
+  lane :build_archive do
+    xcodeproj_path = ENV["MINILAB_IOS_XCODEPROJ"] || "BuildArtifacts/iOS/XcodeProject/Unity-iPhone.xcodeproj"
+    output_dir = ENV["MINILAB_IOS_OUTPUT_DIR"] || "BuildArtifacts/iOS"
+    output_name = ENV["MINILAB_IOS_IPA_NAME"] || "app-store.ipa"
+
+    UI.user_error!("Xcode project not found: #{xcodeproj_path}") unless File.exist?(xcodeproj_path)
+
+    build_ios_app(
+      project: xcodeproj_path,
+      scheme: "Unity-iPhone",
+      clean: true,
+      export_method: "app-store",
+      output_directory: output_dir,
+      output_name: output_name
+    )
+
+    UI.success("iOS archive completed: #{File.join(output_dir, output_name)}")
+  end
+
+  desc "Upload IPA to TestFlight internal (requires App Store Connect credentials)"
   lane :internal do
     ipa_path = ENV["MINILAB_IOS_IPA_PATH"]
-    UI.user_error!("MINILAB_IOS_IPA_PATH is required") if ipa_path.to_s.empty?
+    if ipa_path.to_s.empty?
+      build_archive
+      ipa_path = Actions.lane_context[SharedValues::IPA_OUTPUT_PATH]
+    end
 
     upload_to_testflight(
       ipa: ipa_path,
       skip_waiting_for_build_processing: true
     )
+
+    UI.success("TestFlight upload completed: #{ipa_path}")
   end
 end
-

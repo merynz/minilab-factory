@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MiniLab BeatMap",
+  "type": "object",
+  "required": ["trackId", "bpm", "offsetSec", "seed", "sections"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "trackId": { "type": "string" },
+    "bpm": { "type": "number", "minimum": 1 },
+    "offsetSec": { "type": "number" },
+    "seed": { "type": "integer" },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "startSec", "endSec"],
+        "properties": {
+          "type": { "type": "string", "enum": ["Rest", "Active"] },
+          "startSec": { "type": "number" },
+          "endSec": { "type": "number" }
+        }
+      }
+    },
+    "tapEvents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["timeSec", "lane", "prefabId"],
+        "properties": {
+          "timeSec": { "type": "number" },
+          "beatIndex": { "type": "integer" },
+          "lane": { "type": "integer" },
+          "prefabId": { "type": "string" },
+          "intensityTag": { "type": "string" }
+        }
+      }
+    },
+    "holdEvents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["startSec", "endSec", "motion", "laneFrom", "laneTo", "prefabId"],
+        "properties": {
+          "startSec": { "type": "number" },
+          "endSec": { "type": "number" },
+          "motion": { "type": "string", "enum": ["Slide", "Drop", "Oscillate"] },
+          "laneFrom": { "type": "integer" },
+          "laneTo": { "type": "integer" },
+          "prefabId": { "type": "string" }
+        }
+      }
+    },
+    "visualPulses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["timeSec", "strength"],
+        "properties": {
+          "timeSec": { "type": "number" },
+          "strength": { "type": "number" }
+        }
+      }
+    },
+    "breathGaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["startSec", "endSec"],
+        "properties": {
+          "startSec": { "type": "number" },
+          "endSec": { "type": "number" }
+        }
+      }
+    }
+  }
+}

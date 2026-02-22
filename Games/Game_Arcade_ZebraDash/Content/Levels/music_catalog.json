@@ -1,0 +1,22 @@
+{
+  "tracks": [
+    {
+      "trackId": "electro_dance_mania",
+      "filePath": "AudioLocal/9. Electro Dance Mania.wav",
+      "bpm": 129.2,
+      "offsetSec": 0.4528,
+      "durationSec": 118.1539,
+      "startTrimSec": 0.0,
+      "levelPath": "Content/Levels/level01_electro.json"
+    },
+    {
+      "trackId": "robo_trance",
+      "filePath": "AudioLocal/4. RoboTrance.wav",
+      "bpm": 129.2,
+      "offsetSec": 0.2206,
+      "durationSec": 155.0769,
+      "startTrimSec": 0.0,
+      "levelPath": "Content/Levels/level02_robo.json"
+    }
+  ]
+}

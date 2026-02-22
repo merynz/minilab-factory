@@ -1,36 +1,59 @@
 # 00 - Review Pack
 
-## Repo Yapisi Ozeti
+- Repo: https://github.com/merynz/minilab-factory
+- PR: https://github.com/merynz/minilab-factory/pull/1
+- Commit: `see latest PR head commit`
+- Unity detected version: `6000.2.6f2 (C:\Program Files\Unity\Hub\Editor\6000.2.6f2\Editor\Unity.exe)`
 
-- `Packages/MiniLab.Core`: tum oyunlarda ortak Unity UPM package (boot, policy kit, telemetry, remote config, debug, store ops yardimcilari).
-- `Templates/ArcadeTemplate`, `Templates/PuzzleTemplate`, `Templates/DefenseTemplate`: tur bazli starter dokular + smoke test checklist.
-- `Games/`: her oyunun ayri app dizini ve tek kaynak `store.yaml`.
-- `Docs/`: release, compliance, CI/CD, quality gate ve store ops standartlari.
-- `tools/` + `fastlane/`: build/upload ve release otomasyon girisleri.
+## PASS / FAIL / SKIP
 
-## Deliverable Durumu
+- Template purity (no SiriusGameMaker): PASS
+- Secrets scan: PASS
+- Docs checklist: PASS
+- Doctor: PASS (5 PASS / 0 FAIL / 3 SKIP)
+- Unity compile: PASS
+- Android AAB build: PASS
+- Android upload internal: SKIP (Ruby/Bundler/Fastlane + Play secrets missing)
+- iOS build: SKIP (Windows host, Mac/signing required)
+- iOS TestFlight upload: SKIP (Windows host, Mac/signing required)
 
-- Tamamlandi:
-  - Monorepo iskeleti ve `MiniLab.Core` paket v0.1 scaffold.
-  - 3 adet template iskeleti.
-  - Multi-app store metadata standardi (`store.yaml` + template).
-  - Android + iOS compliance dokumantasyonu (UMP, Data Safety, Privacy Label, ATT, Privacy Manifest, TestFlight).
-  - CI/CD komut akislari ve fastlane lane iskeleti.
-  - Quality gates, 2 haftalik cadence ve acceptance mapping dokumanlari.
-- Eksik / sonraki sprint:
-  - Unity tarafinda gercek SDK baglantilari (AdMob/UMP/ATT) tamamlanmasi.
-  - CI ortamlarinda credential kurulumu ve pipeline dry-run.
-  - Her template icin oynanabilir scene/prefab baseline’i.
+## Root Cause (Fail varsa)
 
-## Riskler (Play / App Store / Privacy)
+- Bu kosuda FAIL yok.
 
-- Google Play Data Safety beyanlari SDK guncellemelerinde eski kalabilir; her SDK bump’ta envanter yeniden dogrulanmali.
-- iOS Privacy Manifest + Required Reason API beyanlari 3rd-party SDK degisimlerinde kirilabilir; upload oncesi kontrol zorunlu.
-- ATT akisi urun kararina gore netlesmezse iOS review red riski olusur.
-- UMP consent/Privacy Options entry point eksik kalirsa reklam ve policy uyumsuzlugu riski var.
+## Reproduce Komutlari
 
-## Sir Karar Noktalari (1-2)
+```powershell
+pwsh tools/doctor.ps1
+pwsh tools/check-secrets.ps1
+pwsh tools/check-docs.ps1
+pwsh tools/check-template-purity.ps1
+pwsh tools/check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
+pwsh tools/analyze-audio.ps1 -GamePath "Games/Game_Arcade_ZebraDash"
+pwsh tools/build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash.aab"
+pwsh tools/upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/zebradash.aab" -GamePath "Games/Game_Arcade_ZebraDash" -SkipIfSecretsMissing
+pwsh tools/build-ios.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -SkipIfNoMac
+pwsh tools/upload-testflight-internal.ps1 -IpaPath "BuildArtifacts/iOS/app-store.ipa" -SkipIfNoMac -SkipIfSecretsMissing
+```
 
-1. Reklam stratejisi: ilk fazda tracking kapali mi acik mi? (ATT prompt ve attribution akisini dogrudan etkiler.)
-2. CI araci standardi: fastlane + Unity batch tek standart mi, yoksa Unity Cloud Build ile hibrit mi ilerleyecegiz?
+## Log Pathleri
 
+- `BuildArtifacts/unity-compile.log`
+- `BuildArtifacts/unity-android-build.log`
+- `BuildArtifacts/unity-ios-build.log`
+
+## Uretilen Level Dosyalari
+
+- `Games/Game_Arcade_ZebraDash/Content/Levels/music_catalog.json`
+- `Games/Game_Arcade_ZebraDash/Content/Levels/level01_electro.json`
+- `Games/Game_Arcade_ZebraDash/Content/Levels/level02_robo.json`
+
+## Blokajlar
+
+- iOS archive/upload adimlari macOS + signing materyali olmadan calismaz.
+- Android internal upload icin release host'ta Ruby/Bundler/Fastlane + Play service json gereklidir.
+
+## Sir Icin Karar Sorulari (max 2)
+
+1. iOS resmi yolunu hangi modelde kilitleyelim: Dedicated Mac mini, GitHub Actions macOS runner, yoksa Unity Cloud Build?
+2. Android internal upload zorunlu noktasi lokal release host mu yoksa sadece CI mi olacak?
