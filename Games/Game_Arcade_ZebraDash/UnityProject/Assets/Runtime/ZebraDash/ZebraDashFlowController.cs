@@ -51,6 +51,9 @@ namespace ZebraDash
         private BeatClock beatClock;
         private AudioSource audioSource;
         private ParallaxSystem parallaxSystem;
+        private Renderer safeZoneRenderer;
+        private Renderer laneTelegraphLowerRenderer;
+        private Renderer laneTelegraphUpperRenderer;
         private Renderer laneLowerRenderer;
         private Renderer laneUpperRenderer;
         private Renderer hitLineRenderer;
@@ -60,6 +63,7 @@ namespace ZebraDash
         private bool resultSceneQueued;
         private readonly List<float> accentHitTimes = new List<float>();
         private int nextAccentIndex;
+        private int lastBeatVisualIndex = int.MinValue;
         private bool debugOverlayVisible = true;
 
         private ResultSnapshot lastResult;
@@ -159,6 +163,7 @@ namespace ZebraDash
 
             if (runner.State == RunState.Playing)
             {
+                TickBeatGridVisuals();
                 TickAccentPulse();
             }
 
@@ -576,6 +581,11 @@ namespace ZebraDash
                 return string.Empty;
             }
 
+            bool hasTelegraph = runner.TryGetTelegraph(out int teleLane, out float teleLeadSec, out float teleLead01);
+            string telegraphText = hasTelegraph
+                ? $"L{teleLane} in {teleLeadSec:F2}s ({teleLead01:P0})"
+                : "-";
+
             return
                 $"Track: {(selectedTrack != null ? selectedTrack.trackId : "-")}   " +
                 $"State: {runner.State}   " +
@@ -588,6 +598,7 @@ namespace ZebraDash
                 $"Judge: {runner.LastJudge}   Combo: {runner.Combo}   Score: {runner.Score}   P/G/M: {runner.PerfectCount}/{runner.GoodCount}/{runner.MissCount}\n" +
                 $"Section: {runner.CurrentSectionState} ({runner.CurrentStrain:F2}/{runner.TargetStrain:F2}) preset:{runner.CurrentPresetId}   " +
                 $"Parallax x{(parallaxSystem != null ? parallaxSystem.SpeedPulseMultiplier : 1f):F2} emx{(parallaxSystem != null ? parallaxSystem.EmissivePulseMultiplier : 1f):F2}   " +
+                $"Scroll:{runner.WorldScrollPos:F1}@{runner.WorldScrollUnitsPerSec:F1}   Telegraph:{telegraphText}\n" +
                 $"Next: {runner.NextHazardsDebug}\n" +
                 $"{runner.GridDebugLine}\n" +
                 $"{runner.TwoBarPlanDebug}\n" +
@@ -797,9 +808,13 @@ namespace ZebraDash
             beatClock = null;
             audioSource = null;
             parallaxSystem = null;
+            safeZoneRenderer = null;
+            laneTelegraphLowerRenderer = null;
+            laneTelegraphUpperRenderer = null;
             laneLowerRenderer = null;
             laneUpperRenderer = null;
             hitLineRenderer = null;
+            lastBeatVisualIndex = int.MinValue;
 
             if (runtimeRoot != null)
             {
@@ -821,6 +836,30 @@ namespace ZebraDash
                 return;
             }
 
+            safeZoneRenderer = CreateWorldQuad(
+                "SafeZone",
+                worldRoot,
+                new Vector3(hitX + 1.2f, 0f, -1.7f),
+                new Vector3(5.2f, 10.6f, 1f),
+                new Color(0.03f, 0.08f, 0.13f, 0.34f),
+                transparent: true,
+                sortingOrder: 10);
+            laneTelegraphLowerRenderer = CreateWorldQuad(
+                "LaneTelegraphLower",
+                worldRoot,
+                new Vector3(2.6f, -1.2f, -1.5f),
+                new Vector3(27f, 0.62f, 1f),
+                new Color(0.22f, 0.92f, 1f, 0.02f),
+                transparent: true,
+                sortingOrder: 13);
+            laneTelegraphUpperRenderer = CreateWorldQuad(
+                "LaneTelegraphUpper",
+                worldRoot,
+                new Vector3(2.6f, 1.2f, -1.5f),
+                new Vector3(27f, 0.62f, 1f),
+                new Color(1f, 0.52f, 0.88f, 0.02f),
+                transparent: true,
+                sortingOrder: 13);
             laneLowerRenderer = CreateWorldQuad(
                 "LaneLower",
                 worldRoot,
@@ -881,10 +920,60 @@ namespace ZebraDash
 
             float beatPulse = PulseEnvelope(runner.PhaseBeat, 0.10f);
             float accentScale = parallaxSystem != null ? (parallaxSystem.EmissivePulseMultiplier - 1f) : 0f;
+            bool hasTelegraph = runner.TryGetTelegraph(out int telegraphLane, out _, out float telegraphLead01);
+            float telegraphBoost = hasTelegraph ? Mathf.Lerp(0.14f, 0.70f, telegraphLead01) : 0f;
 
-            ApplyPulseColor(laneLowerRenderer, new Color(0.32f, 0.56f, 0.82f, 0.50f), beatPulse, accentScale, 0.18f);
-            ApplyPulseColor(laneUpperRenderer, new Color(0.32f, 0.56f, 0.82f, 0.50f), beatPulse, accentScale, 0.18f);
-            ApplyPulseColor(hitLineRenderer, new Color(0.98f, 0.99f, 1f, 0.74f), beatPulse, accentScale, 0.28f);
+            Color lowerBase = new Color(0.32f, 0.56f, 0.82f, 0.50f);
+            Color upperBase = new Color(0.32f, 0.56f, 0.82f, 0.50f);
+            if (hasTelegraph)
+            {
+                lowerBase = telegraphLane == 0
+                    ? new Color(0.22f, 0.92f, 1f, 0.62f)
+                    : new Color(0.22f, 0.50f, 0.72f, 0.34f);
+                upperBase = telegraphLane == 1
+                    ? new Color(1f, 0.52f, 0.88f, 0.62f)
+                    : new Color(0.45f, 0.38f, 0.58f, 0.34f);
+            }
+
+            ApplyPulseColor(laneLowerRenderer, lowerBase, beatPulse, accentScale, 0.18f + (telegraphLane == 0 ? telegraphBoost * 0.24f : 0f));
+            ApplyPulseColor(laneUpperRenderer, upperBase, beatPulse, accentScale, 0.18f + (telegraphLane == 1 ? telegraphBoost * 0.24f : 0f));
+            ApplyPulseColor(hitLineRenderer, new Color(0.98f, 0.99f, 1f, 0.74f), beatPulse, accentScale, 0.28f + (telegraphBoost * 0.10f));
+
+            if (safeZoneRenderer != null && safeZoneRenderer.material != null)
+            {
+                float alpha = 0.30f + (beatPulse * 0.06f) + (telegraphBoost * 0.10f);
+                RenderMaterialUtils.ApplyColor(safeZoneRenderer.material, new Color(0.03f, 0.08f, 0.13f, Mathf.Clamp01(alpha)));
+            }
+
+            if (laneTelegraphLowerRenderer != null && laneTelegraphLowerRenderer.material != null)
+            {
+                float lowerAlpha = telegraphLane == 0 ? (0.06f + (telegraphBoost * 0.48f)) : 0.02f;
+                RenderMaterialUtils.ApplyColor(laneTelegraphLowerRenderer.material, new Color(0.22f, 0.92f, 1f, lowerAlpha));
+            }
+
+            if (laneTelegraphUpperRenderer != null && laneTelegraphUpperRenderer.material != null)
+            {
+                float upperAlpha = telegraphLane == 1 ? (0.06f + (telegraphBoost * 0.48f)) : 0.02f;
+                RenderMaterialUtils.ApplyColor(laneTelegraphUpperRenderer.material, new Color(1f, 0.52f, 0.88f, upperAlpha));
+            }
+        }
+
+        private void TickBeatGridVisuals()
+        {
+            if (runner == null || runner.State != RunState.Playing)
+            {
+                return;
+            }
+
+            int beatIndex = runner.CurrentBeat;
+            if (beatIndex == lastBeatVisualIndex)
+            {
+                return;
+            }
+
+            lastBeatVisualIndex = beatIndex;
+            screenPulse = Mathf.Max(screenPulse, 0.12f);
+            parallaxSystem?.PushAccent(0.20f);
         }
 
         private static void ApplyPulseColor(Renderer renderer, Color baseColor, float beatPulse, float accentScale, float amp)

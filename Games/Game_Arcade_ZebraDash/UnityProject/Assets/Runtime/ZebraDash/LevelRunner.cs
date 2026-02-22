@@ -127,6 +127,11 @@ namespace ZebraDash
         public int CreatedObstacleCount => obstacleSpawner != null ? obstacleSpawner.CreatedCount : 0;
         public Transform WorldRoot => worldRoot;
 
+        public bool TryGetTelegraph(out int lane, out float leadSec, out float lead01)
+        {
+            return TryGetTelegraph(SongTimeSec, out lane, out leadSec, out lead01);
+        }
+
         private void Awake()
         {
             if (targetCamera == null)
@@ -1000,6 +1005,54 @@ namespace ZebraDash
             }
 
             return null;
+        }
+
+        private bool TryGetTelegraph(float now, out int lane, out float leadSec, out float lead01)
+        {
+            lane = -1;
+            leadSec = float.PositiveInfinity;
+            lead01 = 0f;
+            if (obstacleSpawner == null)
+            {
+                return false;
+            }
+
+            IReadOnlyList<ObstacleSpawner.SpawnDirective> directives = obstacleSpawner.Directives;
+            for (int i = 0; i < directives.Count; i++)
+            {
+                if (resolvedHazards.Contains(i))
+                {
+                    continue;
+                }
+
+                ObstacleSpawner.SpawnDirective directive = directives[i];
+                GameplayPatternEvent evt = directive.PatternEvent;
+                if (evt == null || !evt.isHazard)
+                {
+                    continue;
+                }
+
+                if (directive.HitTimeSec < now - 0.01f)
+                {
+                    continue;
+                }
+
+                float lead = directive.HitTimeSec - now;
+                if (lead < leadSec)
+                {
+                    leadSec = lead;
+                    lane = Mathf.Clamp(evt.lane, 0, 1);
+                }
+            }
+
+            if (lane < 0)
+            {
+                return false;
+            }
+
+            float leadWindowSec = Mathf.Max(0.55f, beatGrid.BeatSec * 1.0f);
+            lead01 = 1f - Mathf.Clamp01(leadSec / leadWindowSec);
+            return leadSec <= leadWindowSec;
         }
 
         private string BuildNextHazardsDebugLine()

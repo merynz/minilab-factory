@@ -6,7 +6,14 @@ namespace ZebraDash
 {
     public sealed class ParallaxSystem : MonoBehaviour
     {
+        private const int MazeRibCount = 18;
+        private const float MazeRibSpacing = 4.6f;
+        private const float MazeRibScrollRatio = 0.52f;
+        private const float MazeHalfHeight = 5.4f;
+        private const float MazeGapHalf = 1.75f;
+        private const float MazeRibWidth = 0.20f;
         private readonly List<ParallaxLayer> layers = new List<ParallaxLayer>();
+        private readonly List<MazeRib> mazeRibs = new List<MazeRib>(MazeRibCount);
         private float pulseStrength;
         private float lastSongTimeSec;
         private float speedMultiplier = 1f;
@@ -38,6 +45,16 @@ namespace ZebraDash
             public float BarAmp;
             public float AccentAmp;
             public double ScrollX;
+        }
+
+        private sealed class MazeRib
+        {
+            public Transform Top;
+            public Transform Bottom;
+            public Material TopMaterial;
+            public Material BottomMaterial;
+            public float Phase;
+            public float Offset;
         }
 
         public void Initialize(Transform parentRoot)
@@ -102,6 +119,7 @@ namespace ZebraDash
                 beatAmp: 0.055f,
                 barAmp: 0.040f,
                 accentAmp: 0.12f);
+            BuildSpaceMaze();
 
             initialized = true;
             hasClockSample = false;
@@ -161,6 +179,8 @@ namespace ZebraDash
                 layer.A.localPosition = new Vector3(wrappedX, y, layer.A.localPosition.z);
                 layer.B.localPosition = new Vector3(wrappedX + wrapRange, y, layer.B.localPosition.z);
             }
+
+            TickSpaceMaze(songTimeSec, worldScrollPos);
         }
 
         public void PushAccent(float intensity)
@@ -195,6 +215,99 @@ namespace ZebraDash
             float dist = Mathf.Min(p, 1f - p);
             float t = Mathf.Clamp01(1f - (dist / Mathf.Max(0.001f, width)));
             return t * t * (3f - (2f * t));
+        }
+
+        private void BuildSpaceMaze()
+        {
+            mazeRibs.Clear();
+            float ribHeight = Mathf.Max(0.5f, MazeHalfHeight - MazeGapHalf);
+            float topY = MazeGapHalf + (ribHeight * 0.5f);
+            float bottomY = -topY;
+            for (int i = 0; i < MazeRibCount; i++)
+            {
+                Color topColor = new Color(0.24f, 0.52f, 0.78f, 0.18f);
+                Color bottomColor = new Color(0.20f, 0.44f, 0.66f, 0.17f);
+                Transform top = CreateMazeSegment($"MazeRibTop_{i}", topY, ribHeight, topColor, -9);
+                Transform bottom = CreateMazeSegment($"MazeRibBottom_{i}", bottomY, ribHeight, bottomColor, -9);
+                var rib = new MazeRib
+                {
+                    Top = top,
+                    Bottom = bottom,
+                    TopMaterial = top != null ? top.GetComponent<Renderer>()?.material : null,
+                    BottomMaterial = bottom != null ? bottom.GetComponent<Renderer>()?.material : null,
+                    Phase = i * 0.42f,
+                    Offset = ((i % 3) - 1) * 0.13f
+                };
+                mazeRibs.Add(rib);
+            }
+        }
+
+        private void TickSpaceMaze(float songTimeSec, float worldScrollPos)
+        {
+            if (mazeRibs.Count == 0)
+            {
+                return;
+            }
+
+            float ribHeight = Mathf.Max(0.5f, MazeHalfHeight - MazeGapHalf);
+            float topYBase = MazeGapHalf + (ribHeight * 0.5f);
+            float bottomYBase = -topYBase;
+            float totalWidth = MazeRibSpacing * MazeRibCount;
+            float minX = -totalWidth * 0.5f;
+            float maxX = totalWidth * 0.5f;
+            float pulseEnvelope = (beatPulse * 0.12f) + (barPulse * 0.07f) + (pulseStrength * 0.12f);
+            float widthScale = 1f + pulseEnvelope;
+
+            for (int i = 0; i < mazeRibs.Count; i++)
+            {
+                MazeRib rib = mazeRibs[i];
+                float baseX = (i * MazeRibSpacing) + rib.Offset;
+                float scrolledX = baseX - (worldScrollPos * MazeRibScrollRatio * speedMultiplier);
+                float x = RepeatRange(scrolledX, minX, maxX);
+                float bob = Mathf.Sin((songTimeSec * 0.55f * bobMultiplier) + rib.Phase) * 0.06f;
+                float topY = topYBase + bob;
+                float bottomY = bottomYBase - bob;
+
+                if (rib.Top != null)
+                {
+                    rib.Top.localPosition = new Vector3(x, topY, -5.9f);
+                    rib.Top.localScale = new Vector3(MazeRibWidth * widthScale, ribHeight, 1f);
+                }
+
+                if (rib.Bottom != null)
+                {
+                    rib.Bottom.localPosition = new Vector3(x, bottomY, -5.9f);
+                    rib.Bottom.localScale = new Vector3(MazeRibWidth * widthScale, ribHeight, 1f);
+                }
+
+                float alpha = Mathf.Clamp01(0.12f + (pulseEnvelope * 0.55f));
+                if (rib.TopMaterial != null)
+                {
+                    RenderMaterialUtils.ApplyColor(rib.TopMaterial, new Color(0.24f, 0.52f, 0.78f, alpha));
+                }
+
+                if (rib.BottomMaterial != null)
+                {
+                    RenderMaterialUtils.ApplyColor(rib.BottomMaterial, new Color(0.20f, 0.44f, 0.66f, alpha * 0.95f));
+                }
+            }
+        }
+
+        private Transform CreateMazeSegment(string name, float y, float height, Color color, int sortingOrder)
+        {
+            GameObject go = RuntimeSpriteFactory.Create(
+                name,
+                layerRoot,
+                new Vector3(0f, y, -5.9f),
+                new Vector3(MazeRibWidth, height, 1f),
+                sortingOrder: sortingOrder);
+            Renderer renderer = go.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.material = RenderMaterialUtils.CreateSolidMaterial(color, true);
+            }
+
+            return go.transform;
         }
 
         private void AddLayer(
@@ -267,6 +380,14 @@ namespace ZebraDash
             }
 
             return mod;
+        }
+
+        private static float RepeatRange(float value, float min, float max)
+        {
+            float range = Mathf.Max(0.001f, max - min);
+            float shifted = value - min;
+            float mod = shifted - (Mathf.Floor(shifted / range) * range);
+            return min + mod;
         }
     }
 }
