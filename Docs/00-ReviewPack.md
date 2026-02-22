@@ -1,43 +1,39 @@
-# 00 - Review Pack Standardi
+# 00 - Review Pack
 
-Her PR aciklamasi su formati kullanir:
+- Repo: https://github.com/merynz/minilab-factory
+- PR: https://github.com/merynz/minilab-factory/pull/1
+- Commit: `<to-be-updated-after-push>`
+- Unity detected version: `6000.2.6f2 (C:\Program Files\Unity\Hub\Editor\6000.2.6f2\Editor\Unity.exe)`
 
-## Header
+## PASS / FAIL / SKIP
 
-- Repo: `<repo-link>`
-- PR: `<pr-link>`
-- Commit: `<sha>`
-- Unity detected version: `<version + path>`
-
-## PASS / FAIL / SKIP Tablosu
-
-- Template purity (no SiriusGameMaker):
-- Secrets scan:
-- Docs checklist:
-- Doctor:
-- Unity compile:
-- Android AAB build:
-- Android upload internal:
-- iOS build:
-- iOS TestFlight upload:
+- Template purity (no SiriusGameMaker): PASS
+- Secrets scan: PASS
+- Docs checklist: PASS
+- Doctor: PASS (5 PASS / 0 FAIL / 3 SKIP)
+- Unity compile: PASS
+- Android AAB build: PASS
+- Android upload internal: SKIP (Ruby/Bundler/Fastlane + Play secrets missing)
+- iOS build: SKIP (Windows host, Mac/signing required)
+- iOS TestFlight upload: SKIP (Windows host, Mac/signing required)
 
 ## Root Cause (Fail varsa)
 
-- 1-3 satir teknik kok neden.
+- Bu kosuda FAIL yok.
 
 ## Reproduce Komutlari
 
 ```powershell
-.\tools\doctor.ps1
-.\tools\check-secrets.ps1
-.\tools\check-docs.ps1
-.\tools\check-template-purity.ps1
-.\tools\check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
-.\tools\analyze-audio.ps1 -GamePath "Games/Game_Arcade_ZebraDash" -CopyFromZip
-.\tools\build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-review.aab"
-.\tools\upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/zebradash-review.aab" -GamePath "Games/Game_Arcade_ZebraDash" -SkipIfSecretsMissing
-.\tools\build-ios.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -SkipIfNoMac
-.\tools\upload-testflight-internal.ps1 -IpaPath "BuildArtifacts/iOS/app-store.ipa" -SkipIfNoMac -SkipIfSecretsMissing
+pwsh tools/doctor.ps1
+pwsh tools/check-secrets.ps1
+pwsh tools/check-docs.ps1
+pwsh tools/check-template-purity.ps1
+pwsh tools/check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
+pwsh tools/analyze-audio.ps1 -GamePath "Games/Game_Arcade_ZebraDash"
+pwsh tools/build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash.aab"
+pwsh tools/upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/zebradash.aab" -GamePath "Games/Game_Arcade_ZebraDash" -SkipIfSecretsMissing
+pwsh tools/build-ios.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -SkipIfNoMac
+pwsh tools/upload-testflight-internal.ps1 -IpaPath "BuildArtifacts/iOS/app-store.ipa" -SkipIfNoMac -SkipIfSecretsMissing
 ```
 
 ## Log Pathleri
@@ -48,16 +44,16 @@ Her PR aciklamasi su formati kullanir:
 
 ## Uretilen Level Dosyalari
 
-- `Games/Game_Arcade_ZebraDash/Content/music_catalog.json`
+- `Games/Game_Arcade_ZebraDash/Content/Levels/music_catalog.json`
 - `Games/Game_Arcade_ZebraDash/Content/Levels/level01_electro.json`
 - `Games/Game_Arcade_ZebraDash/Content/Levels/level02_robo.json`
 
-## Risk / Blokajlar
+## Blokajlar
 
-- iOS macOS + signing zorunlulugu.
-- Play/TestFlight secrets yoksa upload adimlari SKIP.
+- iOS archive/upload adimlari macOS + signing materyali olmadan calismaz.
+- Android internal upload icin release host'ta Ruby/Bundler/Fastlane + Play service json gereklidir.
 
 ## Sir Icin Karar Sorulari (max 2)
 
-1. iOS resmi yolu: Dedicated Mac mini / GitHub Actions macOS runner / Unity Cloud Build?
-2. Android upload adimi lokal release host'ta mi, CI'da mi zorunlu olacak?
+1. iOS resmi yolunu hangi modelde kilitleyelim: Dedicated Mac mini, GitHub Actions macOS runner, yoksa Unity Cloud Build?
+2. Android internal upload zorunlu noktasi lokal release host mu yoksa sadece CI mi olacak?

@@ -18,14 +18,12 @@ Goal: ship a new mobile mini game every 2 weeks with:
 
 ## Quick Start
 
-1. Read `Docs/06-TwoWeekCadence.md`.
-2. Run prerequisites check: `tools/doctor.ps1`.
-3. Create real Unity template projects using `tools/bootstrap-template-projects.ps1`.
-4. Clone a template into a game folder using `tools/new-game.ps1`.
-5. Fill `Games/<GameName>/store.yaml`.
-6. Generate beatmaps (optional): `tools/analyze-audio.ps1 -GamePath "Games/Game_Arcade_ZebraDash" -CopyFromZip`.
-7. Compile check: `tools/check-unity-compile.ps1 -ProjectPath "Games/<GameName>/UnityProject"`.
-8. Build Android using `tools/build-android.ps1 -ProjectPath "Games/<GameName>/UnityProject"`.
+1. `pwsh tools/doctor.ps1`
+2. `pwsh tools/bootstrap-template-projects.ps1`
+3. `pwsh tools/new-game.ps1 -Template arcade -Codename ZebraDash`
+4. `pwsh tools/analyze-audio.ps1 -GamePath "Games/Game_Arcade_ZebraDash" -CopyFromZip`
+5. `pwsh tools/check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"`
+6. `pwsh tools/build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash.aab"`
 
 ## How To Run / Structure
 

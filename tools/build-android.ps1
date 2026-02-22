@@ -67,15 +67,52 @@ function Get-UnityVersion([string]$UnityExePath) {
     return Split-Path -Leaf $versionDir
 }
 
-function Show-LogTail([string]$LogPath) {
+function Get-LogRootCause([string]$LogPath) {
+    if (!(Test-Path $LogPath)) { return "" }
+    $raw = Get-Content -Path $LogPath -Raw
+    $patterns = @(
+        @{ Regex = "(?im)Project has invalid dependencies.*"; Reason = "Project has invalid UPM dependencies (manifest local path may be wrong)." },
+        @{ Regex = "(?im)Unable to add package.*com\.zebratank\.minilab\.core.*"; Reason = "UPM failed to resolve com.zebratank.minilab.core." },
+        @{ Regex = "(?im)store\.yaml bulunamadi|store\.yaml not found"; Reason = "store.yaml missing in project/game path." },
+        @{ Regex = "(?im)application_id_android.*bulunamadi|applicationId.*invalid"; Reason = "Android package name not found/invalid in store.yaml." },
+        @{ Regex = "(?im)keystore.*bulunamadi|keystore.*not found"; Reason = "Custom keystore path is configured but file is missing." },
+        @{ Regex = "(?im)No scene found|No enabled scenes found"; Reason = "Build Settings scene list is empty; bootstrap scene guard is being used or failed." }
+    )
+    foreach ($pattern in $patterns) {
+        if ([regex]::IsMatch($raw, $pattern.Regex)) {
+            return $pattern.Reason
+        }
+    }
+    return ""
+}
+
+function Show-UnityLogDiagnostics([string]$LogPath) {
     Write-Host "Unity log: $LogPath"
     if (!(Test-Path $LogPath)) {
         Write-Host "Unity log not found."
         return
     }
 
+    $rootCause = Get-LogRootCause $LogPath
+    if (-not [string]::IsNullOrWhiteSpace($rootCause)) {
+        Write-Host "Root cause: $rootCause"
+    }
+
+    $firstException = Select-String -Path $LogPath -Pattern '(?im)\b[A-Za-z0-9_.]*Exception:.*' | Select-Object -First 1
+    if ($firstException) {
+        Write-Host "First exception: $($firstException.Line.Trim())"
+    }
+
     Write-Host "----- LOG TAIL (last 200 lines) -----"
     Get-Content -Path $LogPath -Tail 200 | ForEach-Object { Write-Host $_ }
+
+    Write-Host "----- C# COMPILE ERRORS (error CS####) -----"
+    $csErrors = Select-String -Path $LogPath -Pattern 'error CS\d+' -CaseSensitive:$false
+    if ($csErrors) {
+        $csErrors | ForEach-Object { Write-Host $_.Line }
+    } else {
+        Write-Host "(none)"
+    }
 }
 
 function Invoke-UnityWithTimeout([string]$ExePath, [string[]]$ArgumentList, [int]$TimeoutMins, [string]$LogPath) {
@@ -90,7 +127,7 @@ function Invoke-UnityWithTimeout([string]$ExePath, [string[]]$ArgumentList, [int
     $process.Refresh()
     if (-not $process.HasExited -and $process.MainWindowHandle -ne 0) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        Show-LogTail $LogPath
+        Show-UnityLogDiagnostics $LogPath
         throw "FAIL: interactive launch happened (Unity GUI window detected)."
     }
 
@@ -98,7 +135,7 @@ function Invoke-UnityWithTimeout([string]$ExePath, [string[]]$ArgumentList, [int
     $completed = $process.WaitForExit($waitMs)
     if (-not $completed) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        Show-LogTail $LogPath
+        Show-UnityLogDiagnostics $LogPath
         throw "Android build timed out after $TimeoutMins minutes."
     }
 
@@ -180,7 +217,7 @@ $args = @(
 )
 
 $exitCode = Invoke-UnityWithTimeout $resolvedUnityPath $args $TimeoutMinutes $logFile
-Show-LogTail $logFile
+Show-UnityLogDiagnostics $logFile
 if ($exitCode -ne 0) {
     throw "Android build failed (exit $exitCode). Log: $logFile"
 }

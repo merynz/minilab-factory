@@ -57,14 +57,50 @@ function Get-UnityVersion([string]$UnityExePath) {
     return Split-Path -Leaf $versionDir
 }
 
-function Show-LogTail([string]$LogPath) {
+function Get-LogRootCause([string]$LogPath) {
+    if (!(Test-Path $LogPath)) { return "" }
+    $raw = Get-Content -Path $LogPath -Raw
+    $patterns = @(
+        @{ Regex = "(?im)Project has invalid dependencies.*"; Reason = "Project has invalid UPM dependencies (manifest local path may be wrong)." },
+        @{ Regex = "(?im)Unable to add package.*com\.zebratank\.minilab\.core.*"; Reason = "UPM failed to resolve com.zebratank.minilab.core." },
+        @{ Regex = "(?im)bundle_id_ios.*bulunamadi|bundle id.*invalid"; Reason = "iOS bundle id not found/invalid in store.yaml." },
+        @{ Regex = "(?im)No scene found|No enabled scenes found"; Reason = "Build Settings scene list is empty; bootstrap scene guard is being used or failed." }
+    )
+    foreach ($pattern in $patterns) {
+        if ([regex]::IsMatch($raw, $pattern.Regex)) {
+            return $pattern.Reason
+        }
+    }
+    return ""
+}
+
+function Show-UnityLogDiagnostics([string]$LogPath) {
     Write-Host "Unity log: $LogPath"
     if (!(Test-Path $LogPath)) {
         Write-Host "Unity log not found."
         return
     }
+
+    $rootCause = Get-LogRootCause $LogPath
+    if (-not [string]::IsNullOrWhiteSpace($rootCause)) {
+        Write-Host "Root cause: $rootCause"
+    }
+
+    $firstException = Select-String -Path $LogPath -Pattern '(?im)\b[A-Za-z0-9_.]*Exception:.*' | Select-Object -First 1
+    if ($firstException) {
+        Write-Host "First exception: $($firstException.Line.Trim())"
+    }
+
     Write-Host "----- LOG TAIL (last 200 lines) -----"
     Get-Content -Path $LogPath -Tail 200 | ForEach-Object { Write-Host $_ }
+
+    Write-Host "----- C# COMPILE ERRORS (error CS####) -----"
+    $csErrors = Select-String -Path $LogPath -Pattern 'error CS\d+' -CaseSensitive:$false
+    if ($csErrors) {
+        $csErrors | ForEach-Object { Write-Host $_.Line }
+    } else {
+        Write-Host "(none)"
+    }
 }
 
 function Invoke-WithTimeout([string]$FilePath, [string[]]$Args, [int]$TimeoutMins, [string]$LogPath) {
@@ -80,7 +116,7 @@ function Invoke-WithTimeout([string]$FilePath, [string[]]$Args, [int]$TimeoutMin
         $process.Refresh()
         if (-not $process.HasExited -and $process.MainWindowHandle -ne 0) {
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-            if ($LogPath) { Show-LogTail $LogPath }
+            if ($LogPath) { Show-UnityLogDiagnostics $LogPath }
             throw "FAIL: interactive launch happened (Unity GUI window detected)."
         }
     }
@@ -88,7 +124,7 @@ function Invoke-WithTimeout([string]$FilePath, [string[]]$Args, [int]$TimeoutMin
     $completed = $process.WaitForExit([int]([Math]::Max(1, $TimeoutMins) * 60 * 1000))
     if (-not $completed) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        if ($LogPath) { Show-LogTail $LogPath }
+        if ($LogPath) { Show-UnityLogDiagnostics $LogPath }
         throw "Command timed out after $TimeoutMins minutes."
     }
     return $process.ExitCode
@@ -150,7 +186,7 @@ $unityArgs = @(
 )
 
 $exportCode = Invoke-WithTimeout $resolvedUnityPath $unityArgs $TimeoutMinutes $logFile
-Show-LogTail $logFile
+Show-UnityLogDiagnostics $logFile
 if ($exportCode -ne 0) {
     throw "iOS build export failed (exit $exportCode). Log: $logFile"
 }

@@ -26,7 +26,7 @@ Kontrol edilenler:
 ```
 
 Uretilen dosyalar:
-- `Games/Game_Arcade_ZebraDash/Content/music_catalog.json`
+- `Games/Game_Arcade_ZebraDash/Content/Levels/music_catalog.json`
 - `Games/Game_Arcade_ZebraDash/Content/Levels/level01_electro.json`
 - `Games/Game_Arcade_ZebraDash/Content/Levels/level02_robo.json`
 

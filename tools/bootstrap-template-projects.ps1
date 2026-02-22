@@ -36,6 +36,51 @@ function Resolve-UnityPath([string]$ExplicitPath) {
     return ""
 }
 
+function Get-LogRootCause([string]$LogPath) {
+    if (!(Test-Path $LogPath)) { return "" }
+    $raw = Get-Content -Path $LogPath -Raw
+    $patterns = @(
+        @{ Regex = "(?im)Project has invalid dependencies.*"; Reason = "Project has invalid UPM dependencies (manifest local path may be wrong)." },
+        @{ Regex = "(?im)Unable to add package.*com\.zebratank\.minilab\.core.*"; Reason = "UPM failed to resolve com.zebratank.minilab.core." },
+        @{ Regex = "(?im)Cannot perform upm operation.*"; Reason = "UPM operation failed while opening project." },
+        @{ Regex = "(?im)creating project folder:.*failed"; Reason = "Unity failed to create template seed project path." }
+    )
+    foreach ($pattern in $patterns) {
+        if ([regex]::IsMatch($raw, $pattern.Regex)) {
+            return $pattern.Reason
+        }
+    }
+    return ""
+}
+
+function Show-UnityLogDiagnostics([string]$LogPath) {
+    if (!(Test-Path $LogPath)) {
+        Write-Host "Log not found: $LogPath"
+        return
+    }
+
+    $rootCause = Get-LogRootCause $LogPath
+    if (-not [string]::IsNullOrWhiteSpace($rootCause)) {
+        Write-Host "Root cause: $rootCause"
+    }
+
+    $firstException = Select-String -Path $LogPath -Pattern '(?im)\b[A-Za-z0-9_.]*Exception:.*' | Select-Object -First 1
+    if ($firstException) {
+        Write-Host "First exception: $($firstException.Line.Trim())"
+    }
+
+    Write-Host "----- LOG TAIL (last 200 lines) -----"
+    Get-Content -Path $LogPath -Tail 200 | ForEach-Object { Write-Host $_ }
+
+    Write-Host "----- C# COMPILE ERRORS (error CS####) -----"
+    $csErrors = Select-String -Path $LogPath -Pattern 'error CS\d+' -CaseSensitive:$false
+    if ($csErrors) {
+        $csErrors | ForEach-Object { Write-Host $_.Line }
+    } else {
+        Write-Host "(none)"
+    }
+}
+
 function Invoke-UnityWithTimeout([string]$ExePath, [string[]]$Arguments, [string]$LogPath, [int]$TimeoutMins) {
     New-Item -ItemType Directory -Path (Split-Path -Parent $LogPath) -Force | Out-Null
 
@@ -50,28 +95,19 @@ function Invoke-UnityWithTimeout([string]$ExePath, [string[]]$Arguments, [string
     $process.Refresh()
     if (-not $process.HasExited -and $process.MainWindowHandle -ne 0) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        if (Test-Path $LogPath) {
-            Write-Host "----- LOG TAIL (last 200 lines) -----"
-            Get-Content -Path $LogPath -Tail 200 | ForEach-Object { Write-Host $_ }
-        }
+        Show-UnityLogDiagnostics $LogPath
         throw "FAIL: interactive launch happened (Unity GUI window detected)."
     }
 
     $completed = $process.WaitForExit([int]([Math]::Max(1, $TimeoutMins) * 60 * 1000))
     if (-not $completed) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        if (Test-Path $LogPath) {
-            Write-Host "----- LOG TAIL (last 200 lines) -----"
-            Get-Content -Path $LogPath -Tail 200 | ForEach-Object { Write-Host $_ }
-        }
+        Show-UnityLogDiagnostics $LogPath
         throw "Unity timed out after $TimeoutMins minutes. Log: $LogPath"
     }
 
     if ($process.ExitCode -ne 0) {
-        if (Test-Path $LogPath) {
-            Write-Host "----- LOG TAIL (last 200 lines) -----"
-            Get-Content -Path $LogPath -Tail 200 | ForEach-Object { Write-Host $_ }
-        }
+        Show-UnityLogDiagnostics $LogPath
         throw "Unity command failed (exit $($process.ExitCode)). Log: $LogPath"
     }
 }
