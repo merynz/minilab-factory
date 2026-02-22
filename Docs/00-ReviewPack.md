@@ -11,7 +11,9 @@
 - Unity compile (x2 back-to-back): PASS
 - Clean tree after compile x2: PASS (no new unstaged write)
 - Analyze audio (2 WAV): PASS
+- StreamingAssets content sync (Levels+Audio): PASS
 - Android APK build (`BuildArtifacts/zebradash-dev.apk`): PASS
+- Android APK install/update (`adb install -r`): PASS
 - Android AAB build (`BuildArtifacts/Android/zebradash-review.aab`): PASS
 - Android upload internal: SKIP (Ruby/Bundler/Fastlane + Play secrets missing)
 - iOS build: SKIP (Windows host, Mac/signing required)
@@ -28,9 +30,11 @@
 ```powershell
 pwsh tools/doctor.ps1
 pwsh tools/analyze-audio.ps1 -GamePath "Games/Game_Arcade_ZebraDash"
+pwsh tools/sync-zebradash-content.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
 pwsh tools/check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
 pwsh tools/check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
 pwsh tools/build-android-apk.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-dev.apk"
+pwsh tools/install-android.ps1 -ApkPath "BuildArtifacts/zebradash-dev.apk"
 pwsh tools/build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-review.aab"
 pwsh tools/upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/zebradash-review.aab" -GamePath "Games/Game_Arcade_ZebraDash" -SkipIfSecretsMissing
 ```
@@ -41,6 +45,7 @@ pwsh tools/upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/zebradas
 - `BuildArtifacts/unity-android-apk-build.log`
 - `BuildArtifacts/unity-android-build.log`
 - `BuildArtifacts/unity-ios-build.log`
+- Content sync destination: `Games/Game_Arcade_ZebraDash/UnityProject/Assets/StreamingAssets/ZebraDash/`
 
 ## Uretilen Level Dosyalari
 

@@ -1,10 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using MiniLab.Core.Rhythm;
 using UnityEngine;
-using UnityEngine.Networking;
 
 namespace ZebraDash
 {
@@ -61,11 +59,25 @@ namespace ZebraDash
         private IEnumerator Start()
         {
             Screen.orientation = ScreenOrientation.LandscapeLeft;
-            catalog = ZebraDashCatalogIo.LoadCatalog();
+            statusLine = "music_catalog yukleniyor...";
+            MusicCatalog loadedCatalog = null;
+            string catalogError = "";
+            yield return ZebraDashCatalogIo.LoadCatalogAsync((loaded, error) =>
+            {
+                loadedCatalog = loaded;
+                catalogError = error ?? "";
+            });
+
+            catalog = loadedCatalog ?? new MusicCatalog();
             if (catalog?.tracks == null || catalog.tracks.Length == 0)
             {
-                statusLine = "music_catalog.json bos veya eksik.";
+                statusLine = "Track yok. tools/analyze-audio.ps1 ve tools/sync-zebradash-content.ps1 calistirin.";
                 yield break;
+            }
+
+            if (!string.IsNullOrWhiteSpace(catalogError))
+            {
+                statusLine = $"Catalog warning: {catalogError}";
             }
 
             activeTrackIndex = ResolveTrackIndex(defaultTrackId);
@@ -111,13 +123,30 @@ namespace ZebraDash
 
             activeTrackIndex = Mathf.Clamp(trackIndex, 0, catalog.tracks.Length - 1);
             activeTrack = catalog.tracks[activeTrackIndex];
-            beatMap = ZebraDashCatalogIo.LoadBeatMap(activeTrack);
+            BeatMap loadedMap = null;
+            string mapError = "";
+            yield return ZebraDashCatalogIo.LoadBeatMapAsync(activeTrack, (map, error) =>
+            {
+                loadedMap = map;
+                mapError = error ?? "";
+            });
+
+            beatMap = loadedMap ?? new BeatMap
+            {
+                trackId = activeTrack.trackId,
+                bpm = activeTrack.bpm,
+                offsetSec = activeTrack.offsetSec
+            };
             canonicalEvents = BeatMapEventUtils.GetCanonicalEvents(beatMap);
 
             offsetSliderSec = BeatClock.LoadTrackOffsetSec(activeTrack.trackId, activeTrack.offsetSec);
             beatMap.offsetSec = offsetSliderSec;
 
             yield return LoadAudioOrMetronome();
+            if (!string.IsNullOrWhiteSpace(mapError))
+            {
+                statusLine = $"Beatmap warning: {mapError}";
+            }
 
             if (previewRunEnabled)
             {
@@ -135,23 +164,26 @@ namespace ZebraDash
             audioSource.Stop();
             audioSource.clip = null;
 
-            string absoluteAudioPath = ZebraDashPaths.ResolvePath(activeTrack.filePath);
-            if (!string.IsNullOrWhiteSpace(absoluteAudioPath) && File.Exists(absoluteAudioPath))
+            AudioClip loadedClip = null;
+            string audioError = "";
+            yield return ZebraDashCatalogIo.LoadAudioClipAsync(activeTrack, (clip, error) =>
             {
-                string fileUrl = "file:///" + absoluteAudioPath.Replace("\\", "/");
-                using UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(fileUrl, AudioType.WAV);
-                yield return request.SendWebRequest();
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    audioSource.clip = DownloadHandlerAudioClip.GetContent(request);
-                    audioSource.loop = false;
-                    yield break;
-                }
+                loadedClip = clip;
+                audioError = error ?? "";
+            });
+
+            if (loadedClip != null)
+            {
+                audioSource.clip = loadedClip;
+                audioSource.loop = false;
+                yield break;
             }
 
             audioSource.clip = MetronomeClipFactory.Create(beatMap.bpm, 16);
             audioSource.loop = true;
-            statusLine = "Audio yok -> metronom fallback.";
+            statusLine = string.IsNullOrWhiteSpace(audioError)
+                ? "Audio yok -> metronom fallback."
+                : $"Audio yok -> metronom fallback. ({audioError})";
         }
 
         private void SetupPreviewRun()
@@ -282,10 +314,17 @@ namespace ZebraDash
             beatMap.offsetSec = offsetSliderSec;
             BeatClock.SaveTrackOffsetSec(activeTrack.trackId, offsetSliderSec);
             beatClock.UpdateOffset(offsetSliderSec);
+
+            if (!Application.isEditor)
+            {
+                statusLine = "Offset cihazda lokal kaydedildi (PlayerPrefs).";
+                return;
+            }
+
             ZebraDashCatalogIo.SaveCatalog(catalog);
 
-            string levelPath = ZebraDashPaths.ResolvePath(activeTrack.levelPath);
-            if (!string.IsNullOrWhiteSpace(levelPath) && File.Exists(levelPath))
+            string levelPath = ZebraDashPaths.ResolveLevelPathForRead(activeTrack.levelPath);
+            if (!string.IsNullOrWhiteSpace(levelPath) && System.IO.File.Exists(levelPath))
             {
                 BeatMapJson.SaveToFile(levelPath, beatMap);
             }
@@ -315,7 +354,11 @@ namespace ZebraDash
             GUI.Box(new Rect(10, 10, 760, 300), "ZebraDash Beatmap Workbench");
             if (activeTrack == null || beatMap == null || levelRunner == null)
             {
-                GUI.Label(new Rect(20, 40, 600, 20), "Track yok. tools/analyze-audio.ps1 ile level uretin.");
+                GUI.Label(new Rect(20, 40, 730, 20), "Track yok. tools/analyze-audio.ps1 ve tools/sync-zebradash-content.ps1 calistirin.");
+                if (!string.IsNullOrWhiteSpace(statusLine))
+                {
+                    GUI.Label(new Rect(20, 60, 730, 20), statusLine);
+                }
                 return;
             }
 

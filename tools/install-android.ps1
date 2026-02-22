@@ -5,6 +5,52 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+function Resolve-UnityPath {
+    if ($env:MINILAB_UNITY_PATH -and (Test-Path $env:MINILAB_UNITY_PATH)) {
+        return (Resolve-Path $env:MINILAB_UNITY_PATH).Path
+    }
+
+    $roots = @(
+        "C:\Program Files\Unity\Hub\Editor",
+        "C:\Program Files\Unity"
+    )
+
+    foreach ($root in $roots) {
+        if (!(Test-Path $root)) { continue }
+        $candidate = Get-ChildItem -Path $root -Recurse -Filter "Unity.exe" -ErrorAction SilentlyContinue |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+        if ($candidate) { return $candidate.FullName }
+    }
+
+    return ""
+}
+
+function Resolve-AdbPath {
+    $adb = Get-Command adb -ErrorAction SilentlyContinue
+    if ($adb) {
+        return $adb.Source
+    }
+
+    if ($env:ANDROID_SDK_ROOT) {
+        $sdkAdb = Join-Path $env:ANDROID_SDK_ROOT "platform-tools/adb.exe"
+        if (Test-Path $sdkAdb) {
+            return (Resolve-Path $sdkAdb).Path
+        }
+    }
+
+    $unityPath = Resolve-UnityPath
+    if (-not [string]::IsNullOrWhiteSpace($unityPath)) {
+        $unityEditorDir = Split-Path -Parent $unityPath
+        $unityAdb = Join-Path $unityEditorDir "Data/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb.exe"
+        if (Test-Path $unityAdb) {
+            return (Resolve-Path $unityAdb).Path
+        }
+    }
+
+    return ""
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 if (-not [System.IO.Path]::IsPathRooted($ApkPath)) {
     $ApkPath = Join-Path $repoRoot $ApkPath
@@ -15,18 +61,12 @@ if (!(Test-Path $ApkPath)) {
     throw "APK not found: $ApkPath"
 }
 
-$adb = Get-Command adb -ErrorAction SilentlyContinue
-if (-not $adb) {
-    $unityRoot = "C:\Program Files\Unity\Hub\Editor\6000.2.6f2\Editor\Data\PlaybackEngines\AndroidPlayer\SDK\platform-tools\adb.exe"
-    if (Test-Path $unityRoot) {
-        $adbPath = $unityRoot
-    } else {
-        throw "adb not found in PATH. Install Android platform-tools or set PATH."
-    }
-} else {
-    $adbPath = $adb.Source
+$adbPath = Resolve-AdbPath
+if ([string]::IsNullOrWhiteSpace($adbPath)) {
+    throw "adb not found. Install Android platform-tools, set PATH/ANDROID_SDK_ROOT, or install Unity Android Build Support."
 }
 
+Write-Host "Using adb: $adbPath"
 Write-Host "Installing APK: $ApkPath"
 & $adbPath install -r $ApkPath
 if ($LASTEXITCODE -ne 0) {

@@ -117,6 +117,15 @@ if ([string]::IsNullOrWhiteSpace($resolvedUnityPath)) {
 $resolvedProjectPath = Resolve-CanonicalProjectPath $ProjectPath $repoRoot
 Write-Host "Resolved ProjectPath: $resolvedProjectPath"
 
+$syncScript = Join-Path $PSScriptRoot "sync-zebradash-content.ps1"
+if (Test-Path $syncScript) {
+    Write-Host "Running ZebraDash content sync before APK build..."
+    & $syncScript -ProjectPath $resolvedProjectPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Content sync failed with exit code $LASTEXITCODE"
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($ArtifactDir)) {
     $ArtifactDir = Join-Path $repoRoot "BuildArtifacts"
 }
