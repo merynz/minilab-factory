@@ -117,6 +117,7 @@ namespace ZebraDash
             float laneY = lane == 0 ? lowerLaneY : upperLaneY;
             obstacle.Configure(
                 eventKind: patternEvent.kind,
+                presentationKind: patternEvent.presentation,
                 lane: lane,
                 spawnTime: directive.SpawnTimeSec,
                 hitTime: directive.HitTimeSec,

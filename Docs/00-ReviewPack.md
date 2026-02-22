@@ -30,6 +30,15 @@
 - UI: prefabsiz, runtime code-driven `UnityEngine.UI`.
 - One-click scripts: `OneClick-DevBuildInstall.cmd`, `OneClick-PushBranch.cmd`.
 
+## Tek Tap = Beat Update
+
+- Pattern jenerasyonu tek kaynak olarak netlestirildi: `BeatMap -> GameplayPattern -> Spawner/Judge`.
+- Judge eventleri artik `Tap + Accent` hazard eventlerinden uretiliyor (bos tap = Miss).
+- `AccentPulse` kaynaklari beatmap yerine pattern'den okunuyor (gorsel vurgu ile gameplay ayni kaynaktan geliyor).
+- Obstacle presentation katmani ayrildi (`Straight/Diagonal/Drop/Pop`) ve hit-time invariant korundu.
+- `Long -> HoldSlide` eventleri deterministic travel + endTime ile spawn ediliyor.
+- Hazard kontrol loop'unda spawn-sira kaynakli erken `break` kaldirildi; hit-time bazli kontrol korunuyor.
+
 ## Reproduce Komutlari
 
 ```powershell

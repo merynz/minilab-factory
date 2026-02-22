@@ -16,6 +16,14 @@ namespace ZebraDash
         public const string CameraShift = "CameraShift";
     }
 
+    public static class GameplayPresentationKinds
+    {
+        public const string Straight = "Straight";
+        public const string Diagonal = "Diagonal";
+        public const string Drop = "Drop";
+        public const string Pop = "Pop";
+    }
+
     [Serializable]
     public sealed class GameplayPatternEvent
     {
@@ -27,6 +35,7 @@ namespace ZebraDash
         public bool isHazard = true;
         public float travelTimeSec = 1.25f;
         public string sourceKind = BeatKinds.Tap;
+        public string presentation = GameplayPresentationKinds.Straight;
     }
 
     [Serializable]
@@ -81,16 +90,18 @@ namespace ZebraDash
 
                 if (source.IsKind(BeatKinds.Long))
                 {
+                    float endTime = Mathf.Max(source.GetEndTimeSec(), source.timeSec + 0.8f);
                     events.Add(new GameplayPatternEvent
                     {
                         kind = GameplayPatternKinds.HoldSlide,
                         hitTimeSec = source.timeSec,
-                        endTimeSec = Mathf.Max(source.GetEndTimeSec(), source.timeSec + 0.8f),
+                        endTimeSec = endTime,
                         lane = lane,
                         intensity = intensity,
                         isHazard = true,
                         travelTimeSec = 1.35f,
-                        sourceKind = BeatKinds.Long
+                        sourceKind = BeatKinds.Long,
+                        presentation = ResolvePresentation(source, true, rng)
                     });
                     continue;
                 }
@@ -98,6 +109,7 @@ namespace ZebraDash
                 bool accent = source.IsKind(BeatKinds.Accent);
                 bool fakeout = !accent && rng.NextDouble() < fakeoutChance;
                 string kind = fakeout ? GameplayPatternKinds.Fakeout : GameplayPatternKinds.Jump;
+                bool hazard = !fakeout;
 
                 events.Add(new GameplayPatternEvent
                 {
@@ -106,9 +118,10 @@ namespace ZebraDash
                     endTimeSec = source.timeSec,
                     lane = lane,
                     intensity = intensity,
-                    isHazard = !fakeout,
+                    isHazard = hazard,
                     travelTimeSec = accent ? 1.35f : 1.25f,
-                    sourceKind = accent ? BeatKinds.Accent : BeatKinds.Tap
+                    sourceKind = accent ? BeatKinds.Accent : BeatKinds.Tap,
+                    presentation = ResolvePresentation(source, hazard, rng)
                 });
 
                 if (accent)
@@ -122,7 +135,8 @@ namespace ZebraDash
                         intensity = intensity,
                         isHazard = false,
                         travelTimeSec = 0f,
-                        sourceKind = BeatKinds.Accent
+                        sourceKind = BeatKinds.Accent,
+                        presentation = GameplayPresentationKinds.Straight
                     });
 
                     events.Add(new GameplayPatternEvent
@@ -134,7 +148,8 @@ namespace ZebraDash
                         intensity = intensity,
                         isHazard = false,
                         travelTimeSec = 0f,
-                        sourceKind = BeatKinds.Accent
+                        sourceKind = BeatKinds.Accent,
+                        presentation = GameplayPresentationKinds.Straight
                     });
                 }
             }
@@ -156,7 +171,8 @@ namespace ZebraDash
                     intensity = 0.1f,
                     isHazard = false,
                     travelTimeSec = 0f,
-                    sourceKind = BeatKinds.RestSection
+                    sourceKind = BeatKinds.RestSection,
+                    presentation = GameplayPresentationKinds.Straight
                 });
             }
 
@@ -200,6 +216,37 @@ namespace ZebraDash
             }
 
             return currentLane;
+        }
+
+        private static string ResolvePresentation(BeatEvent source, bool hazard, System.Random rng)
+        {
+            if (source == null)
+            {
+                return GameplayPresentationKinds.Straight;
+            }
+
+            if (!hazard)
+            {
+                return GameplayPresentationKinds.Pop;
+            }
+
+            if (source.IsKind(BeatKinds.Long))
+            {
+                return GameplayPresentationKinds.Drop;
+            }
+
+            if (source.IsKind(BeatKinds.Accent))
+            {
+                return GameplayPresentationKinds.Diagonal;
+            }
+
+            int roll = Mathf.Abs(rng.Next()) % 3;
+            return roll switch
+            {
+                0 => GameplayPresentationKinds.Straight,
+                1 => GameplayPresentationKinds.Diagonal,
+                _ => GameplayPresentationKinds.Drop
+            };
         }
 
         private static RestSectionEvent[] BuildFallbackRests(BeatEvent[] events)

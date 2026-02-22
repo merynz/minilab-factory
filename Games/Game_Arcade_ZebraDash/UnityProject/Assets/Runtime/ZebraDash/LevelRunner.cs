@@ -37,6 +37,7 @@ namespace ZebraDash
         private BeatMap activeBeatMap;
         private BeatMap runtimeBeatMap;
         private GameplayPattern activePattern = new GameplayPattern();
+        private float[] accentPulseHitTimes = Array.Empty<float>();
         private float activeOffsetSec;
         private float timelineStartSec;
         private float audioStartSec;
@@ -88,6 +89,7 @@ namespace ZebraDash
         public float Progress01 => levelDurationSec > 0f ? Mathf.Clamp01(SongTimeSec / levelDurationSec) : 0f;
         public int CurrentBeat => beatClock != null ? beatClock.BeatIndex : 0;
         public string CurrentSectionState => currentSectionState;
+        public IReadOnlyList<float> AccentPulseHitTimes => accentPulseHitTimes;
         public Transform WorldRoot => worldRoot;
 
         private void Awake()
@@ -241,6 +243,11 @@ namespace ZebraDash
                 .Where(e => e != null && string.Equals(e.kind, GameplayPatternKinds.CameraShift, StringComparison.OrdinalIgnoreCase))
                 .OrderBy(e => e.hitTimeSec)
                 .ToArray();
+            accentPulseHitTimes = activePattern.events
+                .Where(e => e != null && string.Equals(e.kind, GameplayPatternKinds.AccentPulse, StringComparison.OrdinalIgnoreCase))
+                .Select(e => e.hitTimeSec)
+                .OrderBy(t => t)
+                .ToArray();
 
             consumedTapIndices.Clear();
             missedTapIndices.Clear();
@@ -364,7 +371,7 @@ namespace ZebraDash
                 tapJudgeEvents,
                 consumedTapIndices,
                 now,
-                e => e != null && e.IsKind(BeatKinds.Tap));
+                e => e != null && (e.IsKind(BeatKinds.Tap) || e.IsKind(BeatKinds.Accent)));
 
             if (outcome.EventIndex < 0 || outcome.Result == JudgeResult.Miss)
             {
@@ -454,7 +461,7 @@ namespace ZebraDash
                     float end = hazard.EndTimeSec + collisionWindowSec;
                     if (now < start)
                     {
-                        break;
+                        continue;
                     }
 
                     if (now >= start && now <= end)
@@ -478,7 +485,7 @@ namespace ZebraDash
                 float hitEnd = hazard.HitTimeSec + collisionWindowSec;
                 if (now < hitStart)
                 {
-                    break;
+                    continue;
                 }
 
                 if (now >= hitStart && now <= hitEnd)
@@ -781,7 +788,9 @@ namespace ZebraDash
                     timeSec = e.hitTimeSec,
                     endTimeSec = e.hitTimeSec,
                     lane = e.lane,
-                    kind = BeatKinds.Tap,
+                    kind = string.Equals(e.sourceKind, BeatKinds.Accent, StringComparison.OrdinalIgnoreCase)
+                        ? BeatKinds.Accent
+                        : BeatKinds.Tap,
                     intensity = e.intensity,
                     prefabId = "tap_basic"
                 })

@@ -420,18 +420,6 @@ namespace ZebraDash
                 offsetSec = selectedTrack.offsetSec
             };
 
-            accentHitTimes.Clear();
-            BeatEvent[] canonical = BeatMapEventUtils.GetCanonicalEvents(activeBeatMap);
-            for (int i = 0; i < canonical.Length; i++)
-            {
-                if (canonical[i] != null && canonical[i].IsKind(BeatKinds.Accent))
-                {
-                    accentHitTimes.Add(canonical[i].timeSec);
-                }
-            }
-            accentHitTimes.Sort();
-            nextAccentIndex = 0;
-
             AudioClip loadedClip = null;
             string audioError = "";
             yield return ZebraDashCatalogIo.LoadAudioClipAsync(selectedTrack, (clip, err) =>
@@ -453,6 +441,15 @@ namespace ZebraDash
 
             float offsetSec = BeatClock.LoadTrackOffsetSec(selectedTrack.trackId, 0f);
             runner.StartRun(activeBeatMap, selectedTrack, offsetSec);
+            accentHitTimes.Clear();
+            if (runner.AccentPulseHitTimes != null)
+            {
+                for (int i = 0; i < runner.AccentPulseHitTimes.Count; i++)
+                {
+                    accentHitTimes.Add(runner.AccentPulseHitTimes[i]);
+                }
+            }
+            nextAccentIndex = 0;
             SetStatus(string.IsNullOrWhiteSpace(mapError + audioError)
                 ? $"Playing {selectedTrack.trackId}"
                 : $"{mapError} {audioError}".Trim());
