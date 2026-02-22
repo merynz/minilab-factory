@@ -1,8 +1,8 @@
 # 00 - Review Pack
 
 - Repo: https://github.com/merynz/minilab-factory
-- PR: `https://github.com/merynz/minilab-factory/pull/new/milestone-2-polish`
-- Commit: `d63f1b0`
+- PR: `https://github.com/merynz/minilab-factory/pull/new/milestone-2-juice-polish`
+- Commit: `9e6a8d5`
 - Unity detected version: `6000.2.6f2 (C:\Program Files\Unity\Hub\Editor\6000.2.6f2\Editor\Unity.exe)`
 
 ## PASS / FAIL / SKIP
@@ -10,6 +10,7 @@
 - Doctor: PASS (5 PASS / 0 FAIL / 3 SKIP)
 - Unity compile: PASS
 - Analyze audio (2 WAV): PASS
+- Deploy script (`tools/deploy-zebradash-dev.cmd`): PASS
 - OneClick dev build/install: PASS
 - Android APK build (`BuildArtifacts/zebradash-dev.apk`): PASS
 - Android APK install/update (`adb install -r`): PASS
