@@ -1,8 +1,8 @@
 # 00 - Review Pack
 
 - Repo: https://github.com/merynz/minilab-factory
-- PR: `<to-be-added-after-pr-open>`
-- Commit: `<to-be-added-after-push>`
+- PR: `https://github.com/merynz/minilab-factory/pull/2`
+- Commit: `see latest PR head commit`
 - Unity detected version: `6000.2.6f2 (C:\Program Files\Unity\Hub\Editor\6000.2.6f2\Editor\Unity.exe)`
 
 ## PASS / FAIL / SKIP
