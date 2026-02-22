@@ -11,6 +11,7 @@ namespace ZebraDash
         [SerializeField] private float hitX = -4f;
         [SerializeField] private float lowerLaneY = -1.2f;
         [SerializeField] private float upperLaneY = 1.2f;
+        [SerializeField] private float minSpawnLeadUnits = 20f;
 
         private readonly List<SpawnDirective> directives = new List<SpawnDirective>(1024);
         private readonly List<ObstacleKinematics> active = new List<ObstacleKinematics>(128);
@@ -43,6 +44,7 @@ namespace ZebraDash
                 levelRunner = GetComponent<LevelRunner>();
             }
 
+            SyncAnchorsWithRunner();
             pattern = sourcePattern ?? new GameplayPattern();
             directives.Clear();
             active.Clear();
@@ -234,7 +236,7 @@ namespace ZebraDash
         private float ResolveTravelTime(GameplayPatternEvent evt)
         {
             float beatSec = levelRunner != null ? Mathf.Max(0.0001f, levelRunner.BeatSec) : 0.5f;
-            float minVisibleSec = Mathf.Clamp(1.00f * beatSec, 0.60f, 0.95f);
+            float minVisibleSec = Mathf.Clamp(1.60f * beatSec, 0.82f, 1.25f);
             if (evt != null && evt.travelTimeSec > 0.01f)
             {
                 return Mathf.Max(evt.travelTimeSec, minVisibleSec);
@@ -242,10 +244,25 @@ namespace ZebraDash
 
             if (evt != null && string.Equals(evt.kind, GameplayPatternKinds.HoldSlide, StringComparison.OrdinalIgnoreCase))
             {
-                return Mathf.Max(1.35f, minVisibleSec);
+                return Mathf.Max(1.55f, minVisibleSec);
             }
 
-            return Mathf.Max(1.25f, minVisibleSec);
+            return Mathf.Max(1.35f, minVisibleSec);
+        }
+
+        private void SyncAnchorsWithRunner()
+        {
+            if (levelRunner == null)
+            {
+                return;
+            }
+
+            hitX = levelRunner.HitLineX;
+            float desiredSpawnX = hitX + Mathf.Max(10f, minSpawnLeadUnits);
+            if (spawnX < desiredSpawnX)
+            {
+                spawnX = desiredSpawnX;
+            }
         }
     }
 }
