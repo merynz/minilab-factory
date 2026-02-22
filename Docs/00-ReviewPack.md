@@ -1,51 +1,56 @@
 # 00 - Review Pack
 
 - Repo: https://github.com/merynz/minilab-factory
-- PR: `https://github.com/merynz/minilab-factory/pull/2`
-- Commit: `see latest PR head commit`
+- PR: `to be filled after push`
+- Commit: `to be filled after push`
 - Unity detected version: `6000.2.6f2 (C:\Program Files\Unity\Hub\Editor\6000.2.6f2\Editor\Unity.exe)`
 
 ## PASS / FAIL / SKIP
 
 - Doctor: PASS (5 PASS / 0 FAIL / 3 SKIP)
-- Unity compile (x2 back-to-back): PASS
-- Clean tree after compile x2: PASS (no new unstaged write)
+- Unity compile: PASS
 - Analyze audio (2 WAV): PASS
-- StreamingAssets content sync (Levels+Audio): PASS
+- OneClick dev build/install: PASS
 - Android APK build (`BuildArtifacts/zebradash-dev.apk`): PASS
 - Android APK install/update (`adb install -r`): PASS
-- Android AAB build (`BuildArtifacts/Android/zebradash-review.aab`): PASS
+- Android launch (`adb shell monkey`): PASS
+- Android AAB build (`BuildArtifacts/Android/zebradash.aab`): PASS
 - Android upload internal: SKIP (Ruby/Bundler/Fastlane + Play secrets missing)
 - iOS build: SKIP (Windows host, Mac/signing required)
 - iOS TestFlight upload: SKIP (Windows host, Mac/signing required)
 
-## Root Cause (Fail varsa)
+## Milestone-2 Output
 
-- Bu kosuda FAIL yok.
-- `GraphicsSettings.asset` icin `git diff` icerik farki cikmadi; hash HEAD ile ayni.
-- Unity compile sonrasi ayni dosyada yeni rewrite gozlenmedi.
+- BeatClock DSP otorite: `PlayScheduled` + pause/resume/restart deterministic.
+- BeatMap event standardi: `Tap`, `Accent`, `Long`, `RestSection` (+ backward compat `Hold/Gap`).
+- Spawner: `spawnTime = hitTime - travelTime` + time-based kinematics.
+- Gameplay: 2 lane (`tap = lane switch`), deterministic collision penceresi, combo/judgement HUD.
+- Flow scenes: `Boot`, `MainMenu`, `LevelSelect`, `Gameplay`, `Results`, `BeatmapWorkbench`.
+- UI: prefabsiz, runtime code-driven `UnityEngine.UI`.
+- One-click scripts: `OneClick-DevBuildInstall.cmd`, `OneClick-PushBranch.cmd`.
 
 ## Reproduce Komutlari
 
 ```powershell
 pwsh tools/doctor.ps1
+pwsh tools/check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
 pwsh tools/analyze-audio.ps1 -GamePath "Games/Game_Arcade_ZebraDash"
-pwsh tools/sync-zebradash-content.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
-pwsh tools/check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
-pwsh tools/check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
-pwsh tools/build-android-apk.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-dev.apk"
-pwsh tools/install-android.ps1 -ApkPath "BuildArtifacts/zebradash-dev.apk"
-pwsh tools/build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-review.aab"
-pwsh tools/upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/zebradash-review.aab" -GamePath "Games/Game_Arcade_ZebraDash" -SkipIfSecretsMissing
+pwsh tools/dev-build-install.ps1
+pwsh tools/build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash.aab"
 ```
+
+## One-Click
+
+- `OneClick-DevBuildInstall.cmd`: analyze + sync + APK build + install + app launch.
+- `OneClick-PushBranch.cmd`: branch kontrol + add/commit/push (`milestone-2-polish`).
 
 ## Log Pathleri
 
 - `BuildArtifacts/unity-compile.log`
 - `BuildArtifacts/unity-android-apk-build.log`
 - `BuildArtifacts/unity-android-build.log`
-- `BuildArtifacts/unity-ios-build.log`
-- Content sync destination: `Games/Game_Arcade_ZebraDash/UnityProject/Assets/StreamingAssets/ZebraDash/`
+- `BuildArtifacts/zebradash-dev.apk`
+- `BuildArtifacts/Android/zebradash.aab`
 
 ## Uretilen Level Dosyalari
 
@@ -53,20 +58,7 @@ pwsh tools/upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/zebradas
 - `Games/Game_Arcade_ZebraDash/Content/Levels/level01_electro.json`
 - `Games/Game_Arcade_ZebraDash/Content/Levels/level02_robo.json`
 
-## Milestone-1 Kanitlari
-
-- BeatClock DSP anchor + `PlayScheduled` tek otorite.
-- Hit-time anchored spawn (`spawnTime = hitTime - travelTime`) aktif.
-- Workbench overlay: `dspNow`, `dspStart`, `songTime`, `offsetMs`, `nextBeatDelta`, judge/combo.
-- Tap->Sync + slider offset track bazli `PlayerPrefs` ile kalici.
-- Playable loop: countdown -> play -> fail/restart -> complete/next/exit.
-
 ## Blokajlar
 
 - iOS archive/upload adimlari macOS + signing materyali olmadan calismaz.
 - Android internal upload icin release host'ta Ruby/Bundler/Fastlane + Play service json gereklidir.
-
-## Sir Icin Karar Sorulari (max 2)
-
-1. iOS resmi yolunu hangi modelde kilitleyelim: Dedicated Mac mini, GitHub Actions macOS runner, yoksa Unity Cloud Build?
-2. Android internal upload zorunlu noktasi lokal release host mu yoksa sadece CI mi olacak?

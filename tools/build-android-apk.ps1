@@ -103,6 +103,24 @@ function Invoke-UnityWithTimeout([string]$ExePath, [string[]]$ArgumentList, [int
     return $process.ExitCode
 }
 
+function Restore-UnitySettingsNoise([string]$RepoRoot, [string]$ResolvedProjectPath) {
+    if ([string]::IsNullOrWhiteSpace($ResolvedProjectPath)) {
+        return
+    }
+
+    $relativePath = [System.IO.Path]::GetRelativePath($RepoRoot, $ResolvedProjectPath)
+    $settingsRoot = Join-Path $relativePath "ProjectSettings"
+    $paths = @(
+        (Join-Path $settingsRoot "GraphicsSettings.asset"),
+        (Join-Path $settingsRoot "QualitySettings.asset"),
+        (Join-Path $settingsRoot "PackageManagerSettings.asset"),
+        (Join-Path $settingsRoot "URPProjectSettings.asset")
+    )
+
+    git restore --source=HEAD --worktree -- $paths 2>$null | Out-Null
+    git clean -f -- $paths 2>$null | Out-Null
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $resolvedUnityPath = Resolve-UnityPath $UnityPath
 if ([string]::IsNullOrWhiteSpace($resolvedUnityPath)) {
@@ -165,6 +183,7 @@ $args = @(
 
 $exitCode = Invoke-UnityWithTimeout $resolvedUnityPath $args $TimeoutMinutes $logFile
 Show-UnityLogDiagnostics $logFile
+Restore-UnitySettingsNoise -RepoRoot $repoRoot -ResolvedProjectPath $resolvedProjectPath
 if ($exitCode -ne 0) {
     throw "Android APK build failed (exit $exitCode). Log: $logFile"
 }

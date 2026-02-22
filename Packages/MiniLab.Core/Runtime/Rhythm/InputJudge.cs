@@ -14,7 +14,7 @@ namespace MiniLab.Core.Rhythm
     [Serializable]
     public sealed class JudgeWindows
     {
-        public float perfectMs = 35f;
+        public float perfectMs = 45f;
         public float goodMs = 90f;
     }
 
@@ -112,6 +112,15 @@ namespace MiniLab.Core.Rhythm
 
             JudgeResult result = Evaluate(nearest.timeSec, inputTimeSec);
             return new JudgeOutcome(result, nearest, nearestIndex, nearestAbsDeltaMs);
+        }
+
+        public JudgeOutcome EvaluateNearestTapOrAccent(BeatEvent[] events, IReadOnlyCollection<int> consumedIndices, float inputTimeSec)
+        {
+            return EvaluateNearest(
+                events,
+                consumedIndices,
+                inputTimeSec,
+                e => e != null && (e.IsKind(BeatKinds.Tap) || e.IsKind(BeatKinds.Accent)));
         }
 
         public float MissWindowSec => windows.goodMs / 1000f;

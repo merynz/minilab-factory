@@ -209,27 +209,7 @@ function Estimate-Offset([double[]]$Flux, [double]$HopSec) {
         return 0.0
     }
 
-    $limit = [Math]::Min($Flux.Length - 1, [int](25 / $HopSec))
-    $slice = New-Object 'System.Double[]' ($limit + 1)
-    for ($i = 0; $i -le $limit; $i++) {
-        $slice[$i] = $Flux[$i]
-    }
-
-    $mean = ($slice | Measure-Object -Average).Average
-    $variance = 0.0
-    foreach ($v in $slice) {
-        $variance += ($v - $mean) * ($v - $mean)
-    }
-
-    $std = [Math]::Sqrt($variance / [Math]::Max(1, $slice.Length - 1))
-    $threshold = $mean + (1.4 * $std)
-
-    for ($i = 1; $i -le $limit; $i++) {
-        if ($Flux[$i] -ge $threshold) {
-            return [Math]::Round($i * $HopSec, 4)
-        }
-    }
-
+    $limit = [Math]::Min($Flux.Length - 1, [int](12 / $HopSec))
     $maxVal = -1.0
     $maxIdx = 0
     for ($i = 0; $i -le $limit; $i++) {
@@ -242,316 +222,326 @@ function Estimate-Offset([double[]]$Flux, [double]$HopSec) {
     return [Math]::Round($maxIdx * $HopSec, 4)
 }
 
-function Build-BarEnergy([double[]]$Flux, [double]$HopSec, [double]$StartSec, [double]$BarSec, [int]$BarCount) {
-    $barEnergy = New-Object 'System.Double[]' $BarCount
-    for ($bar = 0; $bar -lt $BarCount; $bar++) {
-        $barStart = $StartSec + ($bar * $BarSec)
-        $barEnd = $barStart + $BarSec
-        $startIdx = [int]([Math]::Floor($barStart / $HopSec))
-        $endIdx = [int]([Math]::Ceiling($barEnd / $HopSec))
-        $startIdx = [Math]::Max(0, $startIdx)
-        $endIdx = [Math]::Min($Flux.Length - 1, $endIdx)
-
-        $sum = 0.0
-        $count = 0
-        for ($i = $startIdx; $i -le $endIdx; $i++) {
-            $sum += $Flux[$i]
-            $count++
-        }
-
-        $barEnergy[$bar] = if ($count -gt 0) { $sum / $count } else { 0.0 }
+function Get-OnsetCandidates([double[]]$Flux, [double]$HopSec, [double]$OffsetSec) {
+    $mean = ($Flux | Measure-Object -Average).Average
+    $variance = 0.0
+    foreach ($v in $Flux) {
+        $variance += ($v - $mean) * ($v - $mean)
     }
+    $std = [Math]::Sqrt($variance / [Math]::Max(1, $Flux.Length - 1))
+    $threshold = $mean + (0.70 * $std)
 
-    return $barEnergy
-}
-
-function Build-SectionsAndEvents(
-    [string]$TrackId,
-    [double]$Bpm,
-    [double]$OffsetSec,
-    [double]$DurationSec,
-    [double[]]$BarEnergy,
-    [int]$Seed
-) {
-    $rand = [System.Random]::new($Seed)
-    $spb = 60.0 / $Bpm
-    $barSec = $spb * 4.0
-    $barCount = $BarEnergy.Length
-
-    $sorted = $BarEnergy.Clone()
-    [Array]::Sort($sorted)
-    $median = if ($sorted.Length -gt 0) { $sorted[[int]($sorted.Length / 2)] } else { 0.0 }
-    $activeThreshold = $median * 0.90
-
-    $isActive = New-Object 'System.Boolean[]' $barCount
-    for ($bar = 0; $bar -lt $barCount; $bar++) {
-        $isActive[$bar] = $BarEnergy[$bar] -ge $activeThreshold
-    }
-
-    for ($group = 0; $group -lt $barCount; $group += 4) {
-        $groupEnd = [Math]::Min($barCount - 1, $group + 3)
-        $activeInGroup = 0
-        $minEnergy = [double]::PositiveInfinity
-        $minIdx = $group
-        for ($bar = $group; $bar -le $groupEnd; $bar++) {
-            if ($isActive[$bar]) { $activeInGroup++ }
-            if ($BarEnergy[$bar] -lt $minEnergy) {
-                $minEnergy = $BarEnergy[$bar]
-                $minIdx = $bar
-            }
-        }
-
-        if ($activeInGroup -eq ($groupEnd - $group + 1)) {
-            $isActive[$minIdx] = $false
-        }
-
-        if ($activeInGroup -eq 0) {
-            $maxEnergy = [double]::NegativeInfinity
-            $maxIdx = $group
-            for ($bar = $group; $bar -le $groupEnd; $bar++) {
-                if ($BarEnergy[$bar] -gt $maxEnergy) {
-                    $maxEnergy = $BarEnergy[$bar]
-                    $maxIdx = $bar
-                }
-            }
-
-            $isActive[$maxIdx] = $true
-        }
-    }
-
-    $sparseBars = New-Object System.Collections.Generic.HashSet[int]
-    for ($group = 0; $group -lt $barCount; $group += 4) {
-        $groupEnd = [Math]::Min($barCount - 1, $group + 3)
-        $candidate = -1
-        $minEnergy = [double]::PositiveInfinity
-        for ($bar = $group; $bar -le $groupEnd; $bar++) {
-            if ($isActive[$bar] -and $BarEnergy[$bar] -lt $minEnergy) {
-                $minEnergy = $BarEnergy[$bar]
-                $candidate = $bar
-            }
-        }
-
-        if ($candidate -ge 0) {
-            [void]$sparseBars.Add($candidate)
-        }
-    }
-
-    $sections = New-Object System.Collections.Generic.List[object]
-    $breathGaps = New-Object System.Collections.Generic.List[object]
-    $tapEvents = New-Object System.Collections.Generic.List[object]
-    $holdEvents = New-Object System.Collections.Generic.List[object]
-    $pulses = New-Object System.Collections.Generic.List[object]
-
-    $patterns = @(
-        @{ name = "simple"; beats = @(0.0, 1.0, 2.0) },
-        @{ name = "syncopated"; beats = @(0.0, 1.5, 2.5) },
-        @{ name = "staircase"; beats = @(0.0, 1.0, 2.0) },
-        @{ name = "fakeout"; beats = @(0.0, 2.75) }
-    )
-
-    $currentLane = 1
-    $lastType = ""
-    $sectionStart = 0.0
-
-    for ($bar = 0; $bar -lt $barCount; $bar++) {
-        $barStart = $OffsetSec + ($bar * $barSec)
-        $barEnd = [Math]::Min($DurationSec, $barStart + $barSec)
-        $type = if ($isActive[$bar]) { "Active" } else { "Rest" }
-
-        if ($type -ne $lastType) {
-            if ($lastType -ne "") {
-                $sections.Add([pscustomobject]@{
-                        type = $lastType
-                        startSec = [Math]::Round($sectionStart, 4)
-                        endSec = [Math]::Round($barStart, 4)
-                        density = 0.0
-                        intensity = 0.0
-                    })
-            }
-
-            $lastType = $type
-            $sectionStart = $barStart
-        }
-
-        if ($type -eq "Rest") {
-            $breathGaps.Add([pscustomobject]@{
-                    startSec = [Math]::Round($barStart, 4)
-                    endSec = [Math]::Round($barEnd, 4)
-                })
+    $result = New-Object System.Collections.Generic.List[object]
+    for ($i = 1; $i -lt ($Flux.Length - 1); $i++) {
+        if ($Flux[$i] -lt $threshold) {
             continue
         }
 
-        $patternIndex = $rand.Next(0, $patterns.Count)
-        $pattern = $patterns[$patternIndex]
-
-        if ($sparseBars.Contains($bar)) {
-            $pattern = @{ name = "simple"; beats = @(0.0) }
+        if ($Flux[$i] -lt $Flux[$i - 1] -or $Flux[$i] -lt $Flux[$i + 1]) {
+            continue
         }
 
-        foreach ($beatOffset in $pattern.beats) {
-            $timeSec = $barStart + ($beatOffset * $spb)
-            if ($timeSec -ge $barEnd - (0.05 * $spb)) {
-                continue
-            }
-
-            if ($pattern.name -eq "staircase") {
-                $currentLane = ($currentLane + 1) % 3
-            }
-            elseif ($pattern.name -eq "syncopated") {
-                if ($rand.NextDouble() -gt 0.5) {
-                    $currentLane = ($currentLane + 2) % 3
-                }
-            }
-            elseif ($pattern.name -eq "fakeout" -and $beatOffset -gt 2.0) {
-                $currentLane = ($currentLane + 1) % 3
-            }
-
-            $tapEvents.Add([pscustomobject]@{
-                    timeSec = [Math]::Round($timeSec, 4)
-                    beatIndex = [int][Math]::Round(($timeSec - $OffsetSec) / $spb)
-                    lane = $currentLane
-                    prefabId = "tap_basic"
-                    intensityTag = if ($BarEnergy[$bar] -gt $median * 1.2) { "high" } else { "mid" }
-                })
-
-            $pulses.Add([pscustomobject]@{
-                    timeSec = [Math]::Round($timeSec, 4)
-                    strength = if ($pattern.name -eq "fakeout") { 0.65 } else { 1.0 }
-                })
+        $time = ($i * $HopSec)
+        if ($time -lt $OffsetSec) {
+            continue
         }
 
-        if ($pattern.name -eq "fakeout") {
-            $pulses.Add([pscustomobject]@{
-                    timeSec = [Math]::Round($barStart + (1.5 * $spb), 4)
-                    strength = 0.55
-                })
+        $result.Add([pscustomobject]@{
+                timeSec = [Math]::Round($time, 4)
+                strength = [Math]::Round($Flux[$i], 6)
+            })
+    }
+
+    return @($result | Sort-Object timeSec | ForEach-Object { $_ })
+}
+
+function Thin-Events([object[]]$Events, [double]$MinSpacingSec) {
+    $thinned = New-Object System.Collections.Generic.List[object]
+    $lastTime = -999.0
+    foreach ($evt in ($Events | Sort-Object timeSec)) {
+        if (($evt.timeSec - $lastTime) -ge $MinSpacingSec) {
+            $thinned.Add($evt)
+            $lastTime = $evt.timeSec
         }
-
-        $holdChance = if ($sparseBars.Contains($bar)) { 0.08 } else { 0.34 }
-        if ($rand.NextDouble() -lt $holdChance) {
-            $holdStart = $barStart + (0.5 * $spb)
-            $durationCandidate = 0.75 + ($rand.NextDouble() * 2.75)
-            $holdEnd = [Math]::Min($DurationSec, $holdStart + $durationCandidate)
-            $holdDuration = $holdEnd - $holdStart
-            if ($holdDuration -ge 0.75) {
-                $motions = @("Slide", "Drop", "Oscillate")
-                $motion = $motions[$rand.Next(0, $motions.Length)]
-                $laneFrom = $currentLane
-                $laneTo = $laneFrom
-                if ($motion -eq "Slide") {
-                    $laneTo = ($laneFrom + 1 + $rand.Next(0, 2)) % 3
-                }
-                elseif ($motion -eq "Oscillate") {
-                    $laneTo = ($laneFrom + 2) % 3
-                }
-
-                $holdEvents.Add([pscustomobject]@{
-                        startSec = [Math]::Round($holdStart, 4)
-                        endSec = [Math]::Round($holdEnd, 4)
-                        motion = $motion
-                        laneFrom = $laneFrom
-                        laneTo = $laneTo
-                        prefabId = "hold_basic"
-                    })
-            }
+        elseif ($evt.strength -gt $thinned[$thinned.Count - 1].strength) {
+            $thinned[$thinned.Count - 1] = $evt
+            $lastTime = $evt.timeSec
         }
     }
 
-    if ($lastType -ne "") {
+    return $thinned.ToArray()
+}
+
+function Build-RestSections([double]$DurationSec, [double]$OffsetSec, [int]$SeedValue) {
+    $rng = [System.Random]::new($SeedValue)
+    $rest = New-Object System.Collections.Generic.List[object]
+
+    $cursor = [Math]::Max($OffsetSec + 6.0, 6.0)
+    while ($cursor -lt ($DurationSec - 4.0)) {
+        $length = 2.0 + ($rng.NextDouble() * 2.0) # 2-4 sec
+        $start = $cursor
+        $end = [Math]::Min($DurationSec - 0.5, $start + $length)
+        if (($end - $start) -ge 1.5) {
+            $rest.Add([pscustomobject]@{
+                    startSec = [Math]::Round($start, 4)
+                    endSec = [Math]::Round($end, 4)
+                })
+        }
+
+        $gap = 8.0 + ($rng.NextDouble() * 4.0) # every 8-12 sec
+        $cursor += $gap
+    }
+
+    return @($rest | Sort-Object startSec | ForEach-Object { $_ })
+}
+
+function Is-InRest([double]$TimeSec, [object[]]$RestSections) {
+    foreach ($rest in $RestSections) {
+        if ($TimeSec -ge $rest.startSec -and $TimeSec -le $rest.endSec) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Get-LongSegments([double[]]$Energy, [double]$HopSec, [double]$DurationSec, [object[]]$RestSections) {
+    $sorted = $Energy.Clone()
+    [Array]::Sort($sorted)
+    $threshold = $sorted[[int]([Math]::Floor($sorted.Length * 0.75))]
+
+    $segments = New-Object System.Collections.Generic.List[object]
+    $startIdx = -1
+    for ($i = 0; $i -lt $Energy.Length; $i++) {
+        if ($Energy[$i] -ge $threshold) {
+            if ($startIdx -lt 0) {
+                $startIdx = $i
+            }
+            continue
+        }
+
+        if ($startIdx -ge 0) {
+            $startSec = $startIdx * $HopSec
+            $endSec = $i * $HopSec
+            $len = $endSec - $startSec
+            if ($len -ge 0.8 -and -not (Is-InRest $startSec $RestSections)) {
+                $segments.Add([pscustomobject]@{
+                        startSec = [Math]::Round($startSec, 4)
+                        endSec = [Math]::Round([Math]::Min($DurationSec, $endSec), 4)
+                    })
+            }
+
+            $startIdx = -1
+        }
+    }
+
+    if ($startIdx -ge 0) {
+        $startSec = $startIdx * $HopSec
+        $endSec = $DurationSec
+        if (($endSec - $startSec) -ge 0.8 -and -not (Is-InRest $startSec $RestSections)) {
+            $segments.Add([pscustomobject]@{
+                    startSec = [Math]::Round($startSec, 4)
+                    endSec = [Math]::Round($endSec, 4)
+                })
+        }
+    }
+
+    return @($segments | Sort-Object startSec | ForEach-Object { $_ })
+}
+
+function Build-Sections([double]$OffsetSec, [double]$DurationSec, [object[]]$RestSections, [object[]]$Events) {
+    $sections = New-Object System.Collections.Generic.List[object]
+
+    $cursor = [Math]::Max(0.0, $OffsetSec)
+    foreach ($rest in $RestSections) {
+        if ($rest.startSec -gt $cursor) {
+            $sections.Add([pscustomobject]@{
+                    type = "Active"
+                    startSec = [Math]::Round($cursor, 4)
+                    endSec = [Math]::Round($rest.startSec, 4)
+                    density = 0.0
+                    intensity = 0.0
+                })
+        }
+
         $sections.Add([pscustomobject]@{
-                type = $lastType
-                startSec = [Math]::Round($sectionStart, 4)
+                type = "Rest"
+                startSec = $rest.startSec
+                endSec = $rest.endSec
+                density = 0.0
+                intensity = 0.1
+            })
+        $cursor = [Math]::Max($cursor, $rest.endSec)
+    }
+
+    if ($cursor -lt $DurationSec) {
+        $sections.Add([pscustomobject]@{
+                type = "Active"
+                startSec = [Math]::Round($cursor, 4)
                 endSec = [Math]::Round($DurationSec, 4)
                 density = 0.0
                 intensity = 0.0
             })
     }
 
-    $tapEventsSorted = $tapEvents | Sort-Object timeSec
-    $holdEventsSorted = $holdEvents | Sort-Object startSec
-    $pulsesSorted = $pulses | Sort-Object timeSec
-
-    $events = New-Object System.Collections.Generic.List[object]
-    foreach ($tap in $tapEventsSorted) {
-        $events.Add([pscustomobject]@{
-                timeSec = [Math]::Round($tap.timeSec, 4)
-                lane = [int]$tap.lane
-                kind = "Tap"
-                durationSec = 0.0
-                intensity = if ($tap.intensityTag -eq "high") { 1.0 } else { 0.65 }
-                prefabId = $tap.prefabId
-                laneTo = [int]$tap.lane
-                motion = "Slide"
-            })
-    }
-
-    foreach ($hold in $holdEventsSorted) {
-        $events.Add([pscustomobject]@{
-                timeSec = [Math]::Round($hold.startSec, 4)
-                lane = [int]$hold.laneFrom
-                kind = "Hold"
-                durationSec = [Math]::Round(($hold.endSec - $hold.startSec), 4)
-                intensity = 0.85
-                prefabId = $hold.prefabId
-                laneTo = [int]$hold.laneTo
-                motion = $hold.motion
-            })
-    }
-
-    foreach ($pulse in $pulsesSorted) {
-        $events.Add([pscustomobject]@{
-                timeSec = [Math]::Round($pulse.timeSec, 4)
-                lane = 0
-                kind = "Accent"
-                durationSec = 0.0
-                intensity = [Math]::Round([Math]::Max(0.0, [Math]::Min(1.0, $pulse.strength)), 3)
-                prefabId = "accent_pulse"
-                laneTo = 0
-                motion = "Slide"
-            })
-    }
-
-    foreach ($gap in $breathGaps) {
-        $events.Add([pscustomobject]@{
-                timeSec = [Math]::Round($gap.startSec, 4)
-                lane = 0
-                kind = "Gap"
-                durationSec = [Math]::Round(($gap.endSec - $gap.startSec), 4)
-                intensity = 0.0
-                prefabId = "gap"
-                laneTo = 0
-                motion = "Slide"
-            })
-    }
-
-    $eventsSorted = $events | Sort-Object timeSec
-
     foreach ($section in $sections) {
-        $sectionDuration = [Math]::Max(0.001, $section.endSec - $section.startSec)
-        $sectionEvents = @($eventsSorted | Where-Object { $_.timeSec -ge $section.startSec -and $_.timeSec -lt $section.endSec -and $_.kind -ne "Gap" })
-        $eventCount = $sectionEvents.Count
-        $densityRaw = $eventCount / [Math]::Max(1.0, ($sectionDuration / $spb))
-        $section.density = [Math]::Round([Math]::Min(1.0, $densityRaw / 1.6), 3)
-        if ($eventCount -gt 0) {
-            $avgIntensity = ($sectionEvents | Measure-Object -Property intensity -Average).Average
-            $section.intensity = [Math]::Round([Math]::Max(0.0, [Math]::Min(1.0, $avgIntensity)), 3)
-        } else {
-            $section.intensity = if ($section.type -eq "Rest") { 0.05 } else { 0.35 }
+        $dur = [Math]::Max(0.001, $section.endSec - $section.startSec)
+        $inside = @($Events | Where-Object { $_.timeSec -ge $section.startSec -and $_.timeSec -lt $section.endSec })
+        $density = [Math]::Min(1.0, $inside.Count / [Math]::Max(1.0, $dur * 1.4))
+        $intensity = if ($inside.Count -gt 0) { ($inside | Measure-Object -Property intensity -Average).Average } else { 0.2 }
+        $section.density = [Math]::Round($density, 3)
+        $section.intensity = [Math]::Round([Math]::Min(1.0, [Math]::Max(0.0, $intensity)), 3)
+    }
+
+    return $sections.ToArray()
+}
+
+function Assign-Lanes([object[]]$Events, [int]$SeedValue) {
+    $rng = [System.Random]::new($SeedValue)
+    $lane = 0
+    $streak = 0
+
+    foreach ($evt in ($Events | Sort-Object timeSec)) {
+        $next = if ($rng.NextDouble() -gt 0.5) { 1 } else { 0 }
+        if ($streak -ge 3) {
+            $next = 1 - $lane
+        }
+
+        if ($next -eq $lane) {
+            $streak++
+        }
+        else {
+            $lane = $next
+            $streak = 1
+        }
+
+        $evt.lane = $lane
+    }
+
+    return $Events
+}
+
+function Build-BeatMap(
+    [string]$TrackId,
+    [double]$Bpm,
+    [double]$OffsetSec,
+    [double]$DurationSec,
+    [double[]]$Flux,
+    [double[]]$Energy,
+    [double]$HopSec,
+    [int]$SeedValue
+) {
+    $restSections = Build-RestSections -DurationSec $DurationSec -OffsetSec $OffsetSec -SeedValue $SeedValue
+    $onsets = Get-OnsetCandidates -Flux $Flux -HopSec $HopSec -OffsetSec $OffsetSec
+    $onsets = Thin-Events -Events $onsets -MinSpacingSec 0.12
+    $onsets = @($onsets | Where-Object { -not (Is-InRest $_.timeSec $restSections) })
+
+    $accentCount = [Math]::Max(1, [int]([Math]::Ceiling($onsets.Count * 0.10)))
+    $accentTimes = New-Object System.Collections.Generic.HashSet[string]
+    foreach ($a in ($onsets | Sort-Object strength -Descending | Select-Object -First $accentCount)) {
+        [void]$accentTimes.Add($a.timeSec.ToString("F4"))
+    }
+
+    $tapAccentEvents = New-Object System.Collections.Generic.List[object]
+    foreach ($evt in ($onsets | Sort-Object timeSec)) {
+        $kind = if ($accentTimes.Contains($evt.timeSec.ToString("F4"))) { "Accent" } else { "Tap" }
+        $tapAccentEvents.Add([pscustomobject]@{
+                timeSec = [Math]::Round($evt.timeSec, 4)
+                endTimeSec = [Math]::Round($evt.timeSec, 4)
+                lane = 0
+                kind = $kind
+                intensity = if ($kind -eq "Accent") { 1.0 } else { 0.65 }
+                prefabId = if ($kind -eq "Accent") { "accent_basic" } else { "tap_basic" }
+                motion = "Slide"
+            })
+    }
+
+    $longSegments = New-Object System.Collections.Generic.List[object]
+    foreach ($segment in (Get-LongSegments -Energy $Energy -HopSec $HopSec -DurationSec $DurationSec -RestSections $restSections)) {
+        $longSegments.Add($segment)
+    }
+
+    if ($longSegments.Count -eq 0) {
+        $fallbackRng = [System.Random]::new($SeedValue + 111)
+        $cursor = [Math]::Max($OffsetSec + 5.0, 5.0)
+        while ($longSegments.Count -lt 3 -and $cursor -lt ($DurationSec - 2.5)) {
+            $start = $cursor + ($fallbackRng.NextDouble() * 1.2)
+            $end = [Math]::Min($DurationSec - 0.5, $start + 1.0 + ($fallbackRng.NextDouble() * 1.4))
+            if (($end - $start) -ge 0.8 -and -not (Is-InRest $start $restSections)) {
+                $longSegments.Add([pscustomobject]@{
+                        startSec = [Math]::Round($start, 4)
+                        endSec = [Math]::Round($end, 4)
+                    })
+            }
+
+            $cursor += 14.0
         }
     }
+    $longEvents = New-Object System.Collections.Generic.List[object]
+    foreach ($segment in $longSegments) {
+        $longEvents.Add([pscustomobject]@{
+                timeSec = $segment.startSec
+                endTimeSec = $segment.endSec
+                lane = 0
+                kind = "Long"
+                intensity = 0.86
+                prefabId = "long_basic"
+                motion = "Drop"
+            })
+    }
+
+    Assign-Lanes -Events $tapAccentEvents -SeedValue ($SeedValue + 17) | Out-Null
+    Assign-Lanes -Events $longEvents -SeedValue ($SeedValue + 47) | Out-Null
+
+    $events = @($tapAccentEvents + $longEvents | Sort-Object timeSec)
+    $sections = Build-Sections -OffsetSec $OffsetSec -DurationSec $DurationSec -RestSections $restSections -Events $events
+
+    $tapLegacy = @($events | Where-Object { $_.kind -eq "Tap" -or $_.kind -eq "Accent" } | ForEach-Object {
+            [pscustomobject]@{
+                timeSec = $_.timeSec
+                beatIndex = [int][Math]::Round(($_.timeSec - $OffsetSec) / (60.0 / $Bpm))
+                lane = [int]$_.lane
+                prefabId = "tap_basic"
+                intensityTag = if ($_.kind -eq "Accent") { "high" } else { "mid" }
+            }
+        })
+
+    $longLegacy = @($events | Where-Object { $_.kind -eq "Long" } | ForEach-Object {
+            [pscustomobject]@{
+                startSec = $_.timeSec
+                endSec = $_.endTimeSec
+                lane = [int]$_.lane
+                intensity = $_.intensity
+            }
+        })
+
+    $pulses = @($events | Where-Object { $_.kind -eq "Accent" } | ForEach-Object {
+            [pscustomobject]@{
+                timeSec = $_.timeSec
+                strength = $_.intensity
+            }
+        })
+
+    $gaps = @($restSections | ForEach-Object {
+            [pscustomobject]@{
+                startSec = $_.startSec
+                endSec = $_.endSec
+            }
+        })
 
     return [pscustomobject]@{
-        schemaVersion = "1.0.0"
+        schemaVersion = "2.0.0"
         trackId = $TrackId
         bpm = [Math]::Round($Bpm, 4)
         offsetSec = [Math]::Round($OffsetSec, 4)
-        seed = $Seed
-        sections = $sections.ToArray()
-        events = @($eventsSorted)
-        tapEvents = @($tapEventsSorted)
-        holdEvents = @($holdEventsSorted)
-        visualPulses = @($pulsesSorted)
-        breathGaps = $breathGaps.ToArray()
+        seed = $SeedValue
+        sections = $sections
+        restSections = $restSections
+        events = $events
+        tapEvents = $tapLegacy
+        longEvents = $longLegacy
+        visualPulses = $pulses
+        breathGaps = $gaps
     }
 }
 
@@ -573,8 +563,8 @@ New-Item -ItemType Directory -Path $AudioRoot -Force | Out-Null
 New-Item -ItemType Directory -Path $levelsRoot -Force | Out-Null
 
 $requiredTracks = @(
-    [pscustomobject]@{ Index = 9; Name = "9. Electro Dance Mania.wav"; TrackId = "electro_dance_mania"; LevelFile = "level01_electro.json" },
-    [pscustomobject]@{ Index = 4; Name = "4. RoboTrance.wav"; TrackId = "robo_trance"; LevelFile = "level02_robo.json" }
+    [pscustomobject]@{ Name = "9. Electro Dance Mania.wav"; TrackId = "electro_dance_mania"; LevelFile = "level01_electro.json" },
+    [pscustomobject]@{ Name = "4. RoboTrance.wav"; TrackId = "robo_trance"; LevelFile = "level02_robo.json" }
 )
 
 $missing = @()
@@ -610,33 +600,33 @@ if ($stillMissing.Count -gt 0) {
 }
 
 $catalogTracks = New-Object System.Collections.Generic.List[object]
-
 for ($i = 0; $i -lt $requiredTracks.Count; $i++) {
     $track = $requiredTracks[$i]
     $wavPath = Join-Path $AudioRoot $track.Name
-    if (!(Test-Path $wavPath)) {
-        throw "Required track missing: $wavPath"
-    }
 
     $wav = Get-WavData -Path $wavPath
     $energyFlux = Get-EnergyFlux -Samples $wav.Samples -SampleRate $wav.SampleRate
     $bpm = Estimate-Bpm -Flux $energyFlux.Flux -HopSec $energyFlux.HopSec
     $offset = Estimate-Offset -Flux $energyFlux.Flux -HopSec $energyFlux.HopSec
 
-    $spb = 60.0 / $bpm
-    $barSec = 4.0 * $spb
-    $barCount = [int]([Math]::Max(8, [Math]::Floor(([Math]::Max(0.0, $wav.DurationSec - $offset)) / $barSec)))
-    $barEnergy = Build-BarEnergy -Flux $energyFlux.Flux -HopSec $energyFlux.HopSec -StartSec $offset -BarSec $barSec -BarCount $barCount
-
-    $mapSeed = $Seed + (($i + 1) * 7919)
-    $beatMap = Build-SectionsAndEvents -TrackId $track.TrackId -Bpm $bpm -OffsetSec $offset -DurationSec $wav.DurationSec -BarEnergy $barEnergy -Seed $mapSeed
+    $trackSeed = $Seed + (($i + 1) * 9973)
+    $beatMap = Build-BeatMap `
+        -TrackId $track.TrackId `
+        -Bpm $bpm `
+        -OffsetSec $offset `
+        -DurationSec $wav.DurationSec `
+        -Flux $energyFlux.Flux `
+        -Energy $energyFlux.Energy `
+        -HopSec $energyFlux.HopSec `
+        -SeedValue $trackSeed
 
     $levelPath = Join-Path $levelsRoot $track.LevelFile
-    $beatMap | ConvertTo-Json -Depth 12 | Set-Content -Path $levelPath
+    $beatMap | ConvertTo-Json -Depth 16 | Set-Content -Path $levelPath
 
     $catalogTracks.Add([ordered]@{
             trackId = $track.TrackId
             filePath = "AudioLocal/$($track.Name)"
+            audioPath = "AudioLocal/$($track.Name)"
             bpm = [Math]::Round($bpm, 4)
             offsetSec = [Math]::Round($offset, 4)
             durationSec = [Math]::Round($wav.DurationSec, 4)

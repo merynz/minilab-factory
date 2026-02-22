@@ -6,12 +6,26 @@ namespace ZebraDash
     public static class BeatmapRuntimeBootstrap
     {
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void EnsureWorkbenchController()
+        private static void EnsureRuntimeControllers()
         {
             Scene scene = SceneManager.GetActiveScene();
-            bool isWorkbench = string.Equals(scene.name, "BeatmapWorkbench", System.StringComparison.OrdinalIgnoreCase);
-            bool isBootstrap = string.Equals(scene.name, "Bootstrap", System.StringComparison.OrdinalIgnoreCase);
-            if (!isWorkbench && !isBootstrap)
+            string sceneName = scene.name;
+
+            bool managedFlowScene = string.Equals(sceneName, "Boot", System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(sceneName, "Bootstrap", System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(sceneName, "MainMenu", System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(sceneName, "LevelSelect", System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(sceneName, "Gameplay", System.StringComparison.OrdinalIgnoreCase)
+                || string.Equals(sceneName, "Results", System.StringComparison.OrdinalIgnoreCase);
+
+            if (managedFlowScene && Object.FindObjectOfType<ZebraDashFlowController>() == null)
+            {
+                GameObject flow = new GameObject("ZebraDashFlowController");
+                flow.AddComponent<ZebraDashFlowController>();
+            }
+
+            bool isWorkbench = string.Equals(sceneName, "BeatmapWorkbench", System.StringComparison.OrdinalIgnoreCase);
+            if (!isWorkbench)
             {
                 return;
             }

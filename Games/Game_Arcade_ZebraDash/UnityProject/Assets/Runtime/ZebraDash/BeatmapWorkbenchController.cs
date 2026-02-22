@@ -458,9 +458,9 @@ namespace ZebraDash
                 {
                     DrawSolidRect(new Rect(x, rect.y + 4, 2f, rect.height - 8), Color.cyan);
                 }
-                else if (evt.IsKind("Hold"))
+                else if (evt.IsKind(BeatKinds.Long) || evt.IsKind(BeatKinds.HoldLegacy))
                 {
-                    float xEnd = rect.x + Mathf.Clamp01((evt.timeSec + evt.durationSec) / duration) * rect.width;
+                    float xEnd = rect.x + Mathf.Clamp01(evt.GetEndTimeSec() / duration) * rect.width;
                     DrawSolidRect(new Rect(x, rect.y + 20, Mathf.Max(2f, xEnd - x), rect.height - 40), Color.yellow);
                 }
                 else if (evt.IsKind("Accent"))

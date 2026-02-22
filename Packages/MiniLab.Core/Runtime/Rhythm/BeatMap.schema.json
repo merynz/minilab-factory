@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "MiniLab BeatMap",
   "type": "object",
-  "required": ["trackId", "bpm", "offsetSec", "seed", "sections"],
+  "required": ["trackId", "bpm", "offsetSec", "seed"],
   "properties": {
     "schemaVersion": { "type": "string" },
     "trackId": { "type": "string" },
@@ -23,64 +23,7 @@
         }
       }
     },
-    "events": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["timeSec", "lane", "kind"],
-        "properties": {
-          "timeSec": { "type": "number" },
-          "lane": { "type": "integer" },
-          "kind": { "type": "string", "enum": ["Tap", "Hold", "Gap", "Accent"] },
-          "durationSec": { "type": "number", "minimum": 0 },
-          "intensity": { "type": "number", "minimum": 0, "maximum": 1 },
-          "prefabId": { "type": "string" },
-          "laneTo": { "type": "integer" },
-          "motion": { "type": "string", "enum": ["Slide", "Drop", "Oscillate"] }
-        }
-      }
-    },
-    "tapEvents": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["timeSec", "lane", "prefabId"],
-        "properties": {
-          "timeSec": { "type": "number" },
-          "beatIndex": { "type": "integer" },
-          "lane": { "type": "integer" },
-          "prefabId": { "type": "string" },
-          "intensityTag": { "type": "string" }
-        }
-      }
-    },
-    "holdEvents": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["startSec", "endSec", "motion", "laneFrom", "laneTo", "prefabId"],
-        "properties": {
-          "startSec": { "type": "number" },
-          "endSec": { "type": "number" },
-          "motion": { "type": "string", "enum": ["Slide", "Drop", "Oscillate"] },
-          "laneFrom": { "type": "integer" },
-          "laneTo": { "type": "integer" },
-          "prefabId": { "type": "string" }
-        }
-      }
-    },
-    "visualPulses": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": ["timeSec", "strength"],
-        "properties": {
-          "timeSec": { "type": "number" },
-          "strength": { "type": "number" }
-        }
-      }
-    },
-    "breathGaps": {
+    "restSections": {
       "type": "array",
       "items": {
         "type": "object",
@@ -90,6 +33,29 @@
           "endSec": { "type": "number" }
         }
       }
-    }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["timeSec", "lane", "kind"],
+        "properties": {
+          "timeSec": { "type": "number" },
+          "endTimeSec": { "type": "number" },
+          "lane": { "type": "integer" },
+          "kind": { "type": "string", "enum": ["Tap", "Accent", "Long", "RestSection", "Hold", "Gap"] },
+          "intensity": { "type": "number", "minimum": 0, "maximum": 1 },
+          "prefabId": { "type": "string" },
+          "motion": { "type": "string" },
+          "durationSec": { "type": "number", "minimum": 0 },
+          "laneTo": { "type": "integer" }
+        }
+      }
+    },
+    "tapEvents": { "type": "array" },
+    "holdEvents": { "type": "array" },
+    "longEvents": { "type": "array" },
+    "visualPulses": { "type": "array" },
+    "breathGaps": { "type": "array" }
   }
 }

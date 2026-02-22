@@ -139,6 +139,24 @@ function Invoke-UnityWithTimeout([string]$ExePath, [string[]]$Arguments, [string
     }
 }
 
+function Restore-UnitySettingsNoise([string]$RepoRoot, [string]$ResolvedProjectPath) {
+    if ([string]::IsNullOrWhiteSpace($ResolvedProjectPath)) {
+        return
+    }
+
+    $relativePath = [System.IO.Path]::GetRelativePath($RepoRoot, $ResolvedProjectPath)
+    $settingsRoot = Join-Path $relativePath "ProjectSettings"
+    $paths = @(
+        (Join-Path $settingsRoot "GraphicsSettings.asset"),
+        (Join-Path $settingsRoot "QualitySettings.asset"),
+        (Join-Path $settingsRoot "PackageManagerSettings.asset"),
+        (Join-Path $settingsRoot "URPProjectSettings.asset")
+    )
+
+    git restore --source=HEAD --worktree -- $paths 2>$null | Out-Null
+    git clean -f -- $paths 2>$null | Out-Null
+}
+
 function Validate-CoreDependencyPaths([string]$RepoRoot) {
     $manifestFiles = Get-ChildItem -Path (Join-Path $RepoRoot "Templates"), (Join-Path $RepoRoot "Games") -Recurse -File -Filter manifest.json -ErrorAction SilentlyContinue |
         Where-Object { $_.FullName -like "*\UnityProject\Packages\manifest.json" }
@@ -200,6 +218,8 @@ if (-not [string]::IsNullOrWhiteSpace($ProjectPath)) {
         "-stackTraceLogType", "Full",
         "-logFile", $compileLog
     ) $compileLog $TimeoutMinutes
+
+    Restore-UnitySettingsNoise -RepoRoot $repoRoot -ResolvedProjectPath $resolvedProjectPath
 } else {
     if ([string]::IsNullOrWhiteSpace($TempProjectPath)) {
         if ($IsWindows) {

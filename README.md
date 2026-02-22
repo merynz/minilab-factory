@@ -19,12 +19,12 @@ Goal: ship a new mobile mini game every 2 weeks with:
 ## Quick Start
 
 1. `pwsh tools/doctor.ps1`
-2. `pwsh tools/analyze-audio.ps1 -GamePath "Games/Game_Arcade_ZebraDash"`
-3. `pwsh tools/sync-zebradash-content.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"`
-4. `pwsh tools/check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"`
-5. `pwsh tools/build-android-apk.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-dev.apk"`
-6. `pwsh tools/install-android.ps1 -ApkPath "BuildArtifacts/zebradash-dev.apk"`
-7. `pwsh tools/build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash.aab"`
+2. `pwsh tools/check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"`
+3. `pwsh tools/analyze-audio.ps1 -GamePath "Games/Game_Arcade_ZebraDash"`
+4. `pwsh tools/build-android-apk.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-dev.apk"`
+5. `pwsh tools/install-android.ps1 -ApkPath "BuildArtifacts/zebradash-dev.apk"`
+6. `OneClick-DevBuildInstall.cmd` (double-click, full dev pipeline)
+7. Oyunda `Play -> Level 01/02` ile loop test edin.
 
 ## How To Run / Structure
 
