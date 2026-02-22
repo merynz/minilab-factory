@@ -32,15 +32,15 @@ namespace ZebraDash
         private BeatMap activeBeatMap;
 
         private Canvas canvas;
+        private RectTransform uiRoot;
+        private RectTransform safeAreaRoot;
+        private Rect lastSafeArea;
         private Text titleText;
         private Text statusText;
         private Text hudText;
         private Text countdownText;
         private GameObject pausePanel;
         private Image pulseOverlay;
-
-        private readonly List<RectTransform> parallaxLayers = new List<RectTransform>();
-        private readonly List<float> parallaxSpeeds = new List<float>();
         private static Material cachedPlayerMaterial;
 
         private GameObject runtimeRoot;
@@ -48,6 +48,7 @@ namespace ZebraDash
         private LevelRunner runner;
         private BeatClock beatClock;
         private AudioSource audioSource;
+        private ParallaxSystem parallaxSystem;
 
         private float screenPulse;
         private float resultsDelay;
@@ -105,6 +106,12 @@ namespace ZebraDash
 
             instance = this;
             DontDestroyOnLoad(gameObject);
+
+            Screen.orientation = ScreenOrientation.LandscapeLeft;
+            Screen.autorotateToLandscapeLeft = false;
+            Screen.autorotateToLandscapeRight = false;
+            Screen.autorotateToPortrait = false;
+            Screen.autorotateToPortraitUpsideDown = false;
         }
 
         private void OnEnable()
@@ -127,7 +134,15 @@ namespace ZebraDash
 
         private void Update()
         {
-            TickParallax();
+            ApplySafeAreaRoot();
+
+            if (parallaxSystem != null)
+            {
+                float songTime = runner != null ? runner.SongTimeSec : 0f;
+                bool isPlaying = runner != null && runner.State == RunState.Playing;
+                parallaxSystem.Tick(songTime, isPlaying);
+            }
+
             TickPulseOverlay();
 
             if (runner == null)
@@ -302,9 +317,6 @@ namespace ZebraDash
 
         private void BuildGameplay()
         {
-            parallaxLayers.Clear();
-            parallaxSpeeds.Clear();
-
             Camera camera = Camera.main;
             if (camera == null)
             {
@@ -317,6 +329,9 @@ namespace ZebraDash
 
             camera.orthographic = true;
             camera.orthographicSize = 5f;
+            camera.transform.SetPositionAndRotation(new Vector3(0f, 0f, -10f), Quaternion.identity);
+            camera.nearClipPlane = 0.01f;
+            camera.farClipPlane = 200f;
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = new Color(0.06f, 0.10f, 0.17f, 1f);
 
@@ -337,9 +352,12 @@ namespace ZebraDash
             ObstacleSpawner spawner = runtimeRoot.AddComponent<ObstacleSpawner>();
             PlayerController player = playerObject.AddComponent<PlayerController>();
             runner = runtimeRoot.AddComponent<LevelRunner>();
+            parallaxSystem = runtimeRoot.AddComponent<ParallaxSystem>();
+            parallaxSystem.Initialize(worldRoot.transform);
 
             runner.ConfigureScene(camera, playerObject.transform, worldRoot.transform);
             runner.ConfigureDependencies(beatClock, audioSource, spawner, player);
+            BuildLaneGuides(worldRoot.transform, playerObject.transform.position.x);
 
             hudText = CreateLabel("", new Vector2(0.02f, 0.96f), 20, TextAnchor.UpperLeft);
             hudText.rectTransform.anchorMin = new Vector2(0.02f, 0.96f);
@@ -436,7 +454,7 @@ namespace ZebraDash
                 audioSource.loop = true;
             }
 
-            float offsetSec = BeatClock.LoadTrackOffsetSec(selectedTrack.trackId, selectedTrack.offsetSec);
+            float offsetSec = BeatClock.LoadTrackOffsetSec(selectedTrack.trackId, 0f);
             runner.StartRun(activeBeatMap, selectedTrack, offsetSec);
             SetStatus(string.IsNullOrWhiteSpace(mapError + audioError)
                 ? $"Playing {selectedTrack.trackId}"
@@ -506,6 +524,7 @@ namespace ZebraDash
             while (nextAccentIndex < accentHitTimes.Count && songTime >= accentHitTimes[nextAccentIndex])
             {
                 screenPulse = Mathf.Max(screenPulse, 0.45f);
+                parallaxSystem?.PushAccent(0.9f);
                 nextAccentIndex++;
             }
         }
@@ -523,33 +542,6 @@ namespace ZebraDash
             pulseOverlay.color = c;
         }
 
-        private void TickParallax()
-        {
-            if (parallaxLayers.Count == 0)
-            {
-                return;
-            }
-
-            bool playing = runner != null && runner.State == RunState.Playing;
-            if (!playing)
-            {
-                return;
-            }
-
-            for (int i = 0; i < parallaxLayers.Count; i++)
-            {
-                RectTransform rt = parallaxLayers[i];
-                Vector2 pos = rt.anchoredPosition;
-                pos.x -= parallaxSpeeds[i] * Time.deltaTime;
-                if (pos.x < -140f)
-                {
-                    pos.x += 280f;
-                }
-
-                rt.anchoredPosition = pos;
-            }
-        }
-
         private string BuildHudLine()
         {
             if (runner == null || beatClock == null)
@@ -561,7 +553,7 @@ namespace ZebraDash
                 $"Track: {(selectedTrack != null ? selectedTrack.trackId : "-")}   " +
                 $"State: {runner.State}   " +
                 $"Beat: {runner.CurrentBeat}   " +
-                $"Offset: {runner.OffsetMs:F1} ms\n" +
+                $"Offset: {runner.OffsetMs:F1} ms   Device: {runner.DeviceOffsetMs:F1} ms   Progress: {runner.Progress01 * 100f:F0}%\n" +
                 $"Judge: {runner.LastJudge}   Combo: {runner.Combo}   Score: {runner.Score}   " +
                 $"P/G/M: {runner.PerfectCount}/{runner.GoodCount}/{runner.MissCount}   Section: {runner.CurrentSectionState}";
         }
@@ -584,14 +576,55 @@ namespace ZebraDash
 
         private void EnsureCanvasAndEventSystem()
         {
-            canvas = FindObjectOfType<Canvas>();
+            GameObject canvasGo = GameObject.Find("ZebraDashCanvas");
+            if (canvasGo == null)
+            {
+                canvasGo = new GameObject("ZebraDashCanvas");
+            }
+
+            canvas = canvasGo.GetComponent<Canvas>();
             if (canvas == null)
             {
-                GameObject canvasGo = new GameObject("ZebraDashCanvas");
                 canvas = canvasGo.AddComponent<Canvas>();
-                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-                canvasGo.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-                canvasGo.AddComponent<GraphicRaycaster>();
+            }
+
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.pixelPerfect = false;
+
+            RectTransform canvasRect = canvas.transform as RectTransform;
+            if (canvasRect != null)
+            {
+                canvasRect.anchorMin = Vector2.zero;
+                canvasRect.anchorMax = Vector2.one;
+                canvasRect.offsetMin = Vector2.zero;
+                canvasRect.offsetMax = Vector2.zero;
+                canvasRect.localScale = Vector3.one;
+            }
+
+            CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
+            if (scaler == null)
+            {
+                scaler = canvas.gameObject.AddComponent<CanvasScaler>();
+            }
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.matchWidthOrHeight = 0.5f;
+
+            if (canvas.GetComponent<GraphicRaycaster>() == null)
+            {
+                canvas.gameObject.AddComponent<GraphicRaycaster>();
+            }
+
+            Canvas[] canvases = FindObjectsOfType<Canvas>();
+            for (int i = 0; i < canvases.Length; i++)
+            {
+                Canvas other = canvases[i];
+                if (other == null || other == canvas)
+                {
+                    continue;
+                }
+
+                other.enabled = false;
             }
 
             if (FindObjectOfType<EventSystem>() == null)
@@ -601,7 +634,9 @@ namespace ZebraDash
                 eventSystemGo.AddComponent<StandaloneInputModule>();
             }
 
-            foreach (Transform child in canvas.transform)
+            EnsureSafeAreaRoot();
+            ApplySafeAreaRoot();
+            foreach (Transform child in uiRoot)
             {
                 Destroy(child.gameObject);
             }
@@ -612,8 +647,87 @@ namespace ZebraDash
             countdownText = null;
             pausePanel = null;
             pulseOverlay = null;
-            parallaxLayers.Clear();
-            parallaxSpeeds.Clear();
+        }
+
+        private void EnsureSafeAreaRoot()
+        {
+            Transform existing = canvas.transform.Find("SafeAreaRoot");
+            if (existing != null)
+            {
+                safeAreaRoot = existing as RectTransform;
+            }
+            else
+            {
+                GameObject go = new GameObject("SafeAreaRoot");
+                safeAreaRoot = go.AddComponent<RectTransform>();
+            }
+
+            safeAreaRoot.SetParent(canvas.transform, false);
+            safeAreaRoot.localScale = Vector3.one;
+            safeAreaRoot.localRotation = Quaternion.identity;
+            safeAreaRoot.anchoredPosition3D = Vector3.zero;
+            safeAreaRoot.sizeDelta = Vector2.zero;
+            safeAreaRoot.pivot = new Vector2(0.5f, 0.5f);
+
+            uiRoot = safeAreaRoot;
+        }
+
+        private void ApplySafeAreaRoot()
+        {
+            if (safeAreaRoot == null)
+            {
+                return;
+            }
+
+            Rect safeArea = Screen.safeArea;
+            if (safeArea.width <= 1f || safeArea.height <= 1f)
+            {
+                safeArea = new Rect(0f, 0f, Screen.width, Screen.height);
+            }
+
+            float screenArea = Mathf.Max(1f, Screen.width * Screen.height);
+            float safeAreaCoverage = (safeArea.width * safeArea.height) / screenArea;
+            if (safeAreaCoverage < 0.70f)
+            {
+                // Some devices briefly report portrait-safe-area values while in landscape.
+                // Ignore those invalid values to avoid tiny centered UI.
+                safeArea = new Rect(0f, 0f, Screen.width, Screen.height);
+            }
+
+            if (safeArea == lastSafeArea && safeAreaRoot.anchorMin != Vector2.zero && safeAreaRoot.anchorMax != Vector2.zero)
+            {
+                return;
+            }
+
+            lastSafeArea = safeArea;
+            Vector2 anchorMin = safeArea.position;
+            Vector2 anchorMax = safeArea.position + safeArea.size;
+
+            float width = Mathf.Max(1f, Screen.width);
+            float height = Mathf.Max(1f, Screen.height);
+            anchorMin.x = Mathf.Clamp01(anchorMin.x / width);
+            anchorMin.y = Mathf.Clamp01(anchorMin.y / height);
+            anchorMax.x = Mathf.Clamp01(anchorMax.x / width);
+            anchorMax.y = Mathf.Clamp01(anchorMax.y / height);
+
+            if (anchorMax.x < anchorMin.x)
+            {
+                float t = anchorMin.x;
+                anchorMin.x = anchorMax.x;
+                anchorMax.x = t;
+            }
+
+            if (anchorMax.y < anchorMin.y)
+            {
+                float t = anchorMin.y;
+                anchorMin.y = anchorMax.y;
+                anchorMax.y = t;
+            }
+
+            safeAreaRoot.anchorMin = anchorMin;
+            safeAreaRoot.anchorMax = anchorMax;
+            safeAreaRoot.offsetMin = Vector2.zero;
+            safeAreaRoot.offsetMax = Vector2.zero;
         }
 
         private void CleanupRuntimeSceneObjects()
@@ -621,6 +735,7 @@ namespace ZebraDash
             runner = null;
             beatClock = null;
             audioSource = null;
+            parallaxSystem = null;
 
             if (runtimeRoot != null)
             {
@@ -635,9 +750,66 @@ namespace ZebraDash
             }
         }
 
+        private static void BuildLaneGuides(Transform worldRoot, float hitX)
+        {
+            if (worldRoot == null)
+            {
+                return;
+            }
+
+            CreateWorldQuad(
+                "LaneLower",
+                worldRoot,
+                new Vector3(0f, -1.2f, 1.5f),
+                new Vector3(36f, 0.10f, 1f),
+                new Color(0.28f, 0.48f, 0.70f, 0.75f),
+                transparent: true);
+            CreateWorldQuad(
+                "LaneUpper",
+                worldRoot,
+                new Vector3(0f, 1.2f, 1.5f),
+                new Vector3(36f, 0.10f, 1f),
+                new Color(0.28f, 0.48f, 0.70f, 0.75f),
+                transparent: true);
+            CreateWorldQuad(
+                "HitLine",
+                worldRoot,
+                new Vector3(hitX, 0f, 1.4f),
+                new Vector3(0.08f, 3.2f, 1f),
+                new Color(0.95f, 0.96f, 0.98f, 0.65f),
+                transparent: true);
+        }
+
+        private static void CreateWorldQuad(
+            string name,
+            Transform parent,
+            Vector3 localPosition,
+            Vector3 localScale,
+            Color color,
+            bool transparent)
+        {
+            GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            quad.name = name;
+            quad.transform.SetParent(parent, false);
+            quad.transform.localPosition = localPosition;
+            quad.transform.localScale = localScale;
+
+            Renderer renderer = quad.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.sharedMaterial = RenderMaterialUtils.CreateSolidMaterial(color, transparent);
+            }
+
+            Collider collider = quad.GetComponent<Collider>();
+            if (collider != null)
+            {
+                UnityEngine.Object.Destroy(collider);
+            }
+        }
+
         private void SetBackdrop(Color color)
         {
-            if (canvas == null)
+            if (uiRoot == null)
             {
                 return;
             }
@@ -645,31 +817,9 @@ namespace ZebraDash
             CreateImage(new Vector2(0.5f, 0.5f), new Vector2(5000f, 5000f), color);
         }
 
-        private void BuildParallaxBackground()
-        {
-            Color[] colors =
-            {
-                new Color(0.08f, 0.12f, 0.18f, 0.85f),
-                new Color(0.11f, 0.17f, 0.24f, 0.75f),
-                new Color(0.18f, 0.24f, 0.31f, 0.65f)
-            };
-
-            for (int i = 0; i < colors.Length; i++)
-            {
-                Image layer = CreateImage(new Vector2(0.5f, 0.2f + (i * 0.22f)), new Vector2(2800f, 180f), colors[i]);
-                RectTransform rt = layer.rectTransform;
-                rt.anchorMin = new Vector2(0f, 0f);
-                rt.anchorMax = new Vector2(0f, 0f);
-                rt.pivot = new Vector2(0.5f, 0.5f);
-                rt.anchoredPosition = new Vector2(0f, 120f + (i * 120f));
-                parallaxLayers.Add(rt);
-                parallaxSpeeds.Add(12f + (i * 8f));
-            }
-        }
-
         private Text CreateLabel(string text, Vector2 anchor, int fontSize, TextAnchor align)
         {
-            RectTransform root = canvas.transform as RectTransform;
+            RectTransform root = uiRoot;
             return CreateLabel(text, root, anchor, fontSize, align);
         }
 
@@ -696,7 +846,7 @@ namespace ZebraDash
 
         private GameObject CreatePanel(Vector2 anchor, Vector2 size, Color color)
         {
-            RectTransform root = canvas.transform as RectTransform;
+            RectTransform root = uiRoot;
             GameObject go = new GameObject("Panel");
             go.transform.SetParent(root, false);
             RectTransform rt = go.AddComponent<RectTransform>();
@@ -712,7 +862,7 @@ namespace ZebraDash
         private Image CreateImage(Vector2 anchor, Vector2 size, Color color)
         {
             GameObject go = new GameObject("Image");
-            go.transform.SetParent(canvas.transform, false);
+            go.transform.SetParent(uiRoot, false);
             RectTransform rt = go.AddComponent<RectTransform>();
             rt.anchorMin = anchor;
             rt.anchorMax = anchor;
@@ -725,7 +875,7 @@ namespace ZebraDash
 
         private void CreateButton(string label, Vector2 anchor, Action onClick, Vector2? size = null)
         {
-            RectTransform root = canvas.transform as RectTransform;
+            RectTransform root = uiRoot;
             CreateButton(label, root, anchor, onClick, size ?? new Vector2(420f, 72f));
         }
 
@@ -791,21 +941,7 @@ namespace ZebraDash
                 return cachedPlayerMaterial;
             }
 
-            Shader shader = Shader.Find("Unlit/Color");
-            if (shader == null)
-            {
-                shader = Shader.Find("Sprites/Default");
-            }
-
-            if (shader == null)
-            {
-                return null;
-            }
-
-            cachedPlayerMaterial = new Material(shader)
-            {
-                color = new Color(0.95f, 0.96f, 0.98f, 1f)
-            };
+            cachedPlayerMaterial = RenderMaterialUtils.CreateSolidMaterial(new Color(0.95f, 0.96f, 0.98f, 1f));
             return cachedPlayerMaterial;
         }
     }

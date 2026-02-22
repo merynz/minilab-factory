@@ -139,8 +139,7 @@ namespace ZebraDash
             };
             canonicalEvents = BeatMapEventUtils.GetCanonicalEvents(beatMap);
 
-            offsetSliderSec = BeatClock.LoadTrackOffsetSec(activeTrack.trackId, activeTrack.offsetSec);
-            beatMap.offsetSec = offsetSliderSec;
+            offsetSliderSec = BeatClock.LoadTrackOffsetSec(activeTrack.trackId, 0f);
 
             yield return LoadAudioOrMetronome();
             if (!string.IsNullOrWhiteSpace(mapError))
@@ -310,24 +309,12 @@ namespace ZebraDash
                 return;
             }
 
-            activeTrack.offsetSec = offsetSliderSec;
-            beatMap.offsetSec = offsetSliderSec;
             BeatClock.SaveTrackOffsetSec(activeTrack.trackId, offsetSliderSec);
             beatClock.UpdateOffset(offsetSliderSec);
 
-            if (!Application.isEditor)
-            {
-                statusLine = "Offset cihazda lokal kaydedildi (PlayerPrefs).";
-                return;
-            }
-
-            ZebraDashCatalogIo.SaveCatalog(catalog);
-
-            string levelPath = ZebraDashPaths.ResolveLevelPathForRead(activeTrack.levelPath);
-            if (!string.IsNullOrWhiteSpace(levelPath) && System.IO.File.Exists(levelPath))
-            {
-                BeatMapJson.SaveToFile(levelPath, beatMap);
-            }
+            statusLine = Application.isEditor
+                ? "Offset editor cihazinda PlayerPrefs'e kaydedildi."
+                : "Offset cihazda lokal kaydedildi (PlayerPrefs).";
         }
 
         private string ResolveSectionState(float timeSec)

@@ -8,6 +8,10 @@
     <type fullname="ZebraDash.MovingObstacle" preserve="all" />
     <type fullname="ZebraDash.ObstacleKinematics" preserve="all" />
     <type fullname="ZebraDash.ObstacleSpawner" preserve="all" />
+    <type fullname="ZebraDash.GameplayPatternGenerator" preserve="all" />
+    <type fullname="ZebraDash.GameplayPattern" preserve="all" />
+    <type fullname="ZebraDash.GameplayPatternEvent" preserve="all" />
+    <type fullname="ZebraDash.ParallaxSystem" preserve="all" />
     <type fullname="ZebraDash.PlayerController" preserve="all" />
     <type fullname="ZebraDash.PrefabRegistry" preserve="all" />
     <type fullname="ZebraDash.ZebraDashPaths" preserve="all" />

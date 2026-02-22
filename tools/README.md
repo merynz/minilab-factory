@@ -14,6 +14,8 @@ Automation helpers for bootstrap, build, upload, and versioning.
 - `check-tree.ps1`: generate repo tree summary at `Docs/00-Tree.txt`.
 - `check-unity-compile.ps1`: run Unity Android compile check (game project or temp project) with timeout + deterministic logs.
 - `build-android.ps1`: Unity batch Android AAB build.
+- `deploy-zebradash-dev.ps1`: one-command chain (doctor -> analyze -> sync -> compile -> apk build -> install -> launch -> optional logcat).
+- `deploy-zebradash-dev.cmd`: double-click wrapper for `deploy-zebradash-dev.ps1`.
 - `upload-android-internal.ps1`: upload AAB to Google Play Internal Testing.
 - `build-ios.ps1`: Unity batch iOS export + archive command hook.
 - `upload-testflight-internal.ps1`: upload IPA to TestFlight internal testers.

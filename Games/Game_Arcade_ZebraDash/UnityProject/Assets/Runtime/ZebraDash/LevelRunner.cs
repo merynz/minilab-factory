@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using MiniLab.Core.Rhythm;
 using UnityEngine;
 
@@ -17,6 +18,8 @@ namespace ZebraDash
 
     public sealed class LevelRunner : MonoBehaviour
     {
+        private const string DeviceOffsetPrefsKey = "minilab.rhythm.device_offset_sec";
+
         [SerializeField] private Camera targetCamera;
         [SerializeField] private Transform playerTransform;
         [SerializeField] private Transform worldRoot;
@@ -24,7 +27,7 @@ namespace ZebraDash
         [SerializeField] private AudioSource audioSource;
         [SerializeField] private ObstacleSpawner obstacleSpawner;
         [SerializeField] private PlayerController playerController;
-        [SerializeField] private float countdownDurationSec = 3f;
+        [SerializeField, Range(2, 4)] private int countdownBeats = 3;
         [SerializeField] private float collisionWindowSec = 0.07f;
 
         private RunState state = RunState.Idle;
@@ -32,18 +35,30 @@ namespace ZebraDash
         private float levelDurationSec;
         private string activeTrackId = "";
         private BeatMap activeBeatMap;
+        private BeatMap runtimeBeatMap;
+        private GameplayPattern activePattern = new GameplayPattern();
         private float activeOffsetSec;
+        private float timelineStartSec;
+        private float audioStartSec;
         private string failReason = "";
         private bool restartRequested;
         private bool pauseRequested;
+        private float worldShiftX;
+        private Vector3 baseWorldPosition;
+        private Vector3 baseCameraPosition;
 
         private BeatEvent[] canonicalEvents = Array.Empty<BeatEvent>();
         private BeatEvent[] tapJudgeEvents = Array.Empty<BeatEvent>();
+        private GameplayPatternEvent[] cameraShiftEvents = Array.Empty<GameplayPatternEvent>();
         private readonly HashSet<int> consumedTapIndices = new HashSet<int>();
         private readonly HashSet<int> missedTapIndices = new HashSet<int>();
         private readonly HashSet<int> resolvedHazards = new HashSet<int>();
 
-        private InputJudge inputJudge = new InputJudge(new JudgeWindows());
+        private readonly InputJudge inputJudge = new InputJudge(new JudgeWindows
+        {
+            perfectMs = 45f,
+            goodMs = 90f
+        });
 
         private int combo;
         private int maxCombo;
@@ -69,6 +84,8 @@ namespace ZebraDash
         public float SongTimeSec => beatClock != null ? beatClock.NowSeconds : 0f;
         public float HitLineX => playerTransform != null ? playerTransform.position.x : -4f;
         public float OffsetMs => activeOffsetSec * 1000f;
+        public float DeviceOffsetMs => inputJudge.DeviceOffsetSec * 1000f;
+        public float Progress01 => levelDurationSec > 0f ? Mathf.Clamp01(SongTimeSec / levelDurationSec) : 0f;
         public int CurrentBeat => beatClock != null ? beatClock.BeatIndex : 0;
         public string CurrentSectionState => currentSectionState;
         public Transform WorldRoot => worldRoot;
@@ -113,6 +130,7 @@ namespace ZebraDash
             Screen.autorotateToPortraitUpsideDown = false;
 
             PlacePlayerAtLeftThird();
+            CacheBasePositions();
         }
 
         private void OnDestroy()
@@ -142,6 +160,7 @@ namespace ZebraDash
                 TickSectionState(songTime);
                 TickHazards(songTime);
                 TickAutoMiss(songTime);
+                TickCameraShift(songTime);
 
                 if (levelDurationSec > 0f && songTime >= levelDurationSec)
                 {
@@ -172,6 +191,7 @@ namespace ZebraDash
             playerTransform = player;
             worldRoot = world;
             PlacePlayerAtLeftThird();
+            CacheBasePositions();
         }
 
         public void ConfigureDependencies(BeatClock clock, AudioSource source, ObstacleSpawner spawner, PlayerController player)
@@ -204,12 +224,23 @@ namespace ZebraDash
             activeBeatMap = beatMap;
             activeTrackId = trackEntry?.trackId ?? "unknown_track";
             activeOffsetSec = offsetSec;
-            levelDurationSec = trackEntry != null && trackEntry.durationSec > 0f
-                ? trackEntry.durationSec
-                : EstimateLevelDuration(activeBeatMap);
+            timelineStartSec = ResolveTimelineStartSec(activeBeatMap, trackEntry);
+            audioStartSec = timelineStartSec;
+            runtimeBeatMap = BuildRuntimeBeatMap(activeBeatMap, timelineStartSec);
+            float explicitDurationSec = trackEntry != null && trackEntry.durationSec > 0f
+                ? Mathf.Max(0f, trackEntry.durationSec - timelineStartSec)
+                : 0f;
+            levelDurationSec = explicitDurationSec > 0f
+                ? explicitDurationSec
+                : EstimateLevelDuration(runtimeBeatMap);
 
-            canonicalEvents = BeatMapEventUtils.GetCanonicalEvents(activeBeatMap);
-            tapJudgeEvents = BeatMapEventUtils.GetTapAccentEvents(activeBeatMap);
+            canonicalEvents = BeatMapEventUtils.GetCanonicalEvents(runtimeBeatMap);
+            activePattern = GameplayPatternGenerator.Build(runtimeBeatMap, activeTrackId, 1f);
+            tapJudgeEvents = BuildJudgeEvents(activePattern);
+            cameraShiftEvents = activePattern.events
+                .Where(e => e != null && string.Equals(e.kind, GameplayPatternKinds.CameraShift, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(e => e.hitTimeSec)
+                .ToArray();
 
             consumedTapIndices.Clear();
             missedTapIndices.Clear();
@@ -225,16 +256,19 @@ namespace ZebraDash
             restartRequested = false;
             pauseRequested = false;
             currentSectionState = "Active";
+            worldShiftX = 0f;
+            ResetWorldShift();
 
-            obstacleSpawner.Configure(activeBeatMap);
+            obstacleSpawner.Configure(activePattern);
             obstacleSpawner.ResetAll();
 
-            inputJudge.SetDeviceOffset(0f);
+            inputJudge.SetDeviceOffset(LoadDeviceOffsetSec());
             playerController.InitializeLanes(-1.2f, 1.2f);
             playerController.SetLane(0);
             playerController.SetInputEnabled(false);
 
-            countdownRemaining = countdownDurationSec;
+            float secondsPerBeat = 60f / Mathf.Max(1f, runtimeBeatMap != null ? runtimeBeatMap.bpm : activeBeatMap.bpm);
+            countdownRemaining = secondsPerBeat * Mathf.Clamp(countdownBeats, 2, 4);
             TransitionTo(RunState.Countdown);
         }
 
@@ -293,7 +327,14 @@ namespace ZebraDash
         private void BeginPlayback()
         {
             countdownRemaining = 0f;
-            beatClock.StartClock(audioSource, activeBeatMap.bpm, activeOffsetSec, activeTrackId);
+            if (audioSource != null && audioSource.clip != null && audioStartSec > 0.01f)
+            {
+                float maxStartSec = Mathf.Max(0f, audioSource.clip.length - 0.05f);
+                audioSource.time = Mathf.Clamp(audioStartSec, 0f, maxStartSec);
+            }
+
+            float bpm = runtimeBeatMap != null ? runtimeBeatMap.bpm : activeBeatMap.bpm;
+            beatClock.StartClock(audioSource, bpm, activeOffsetSec, activeTrackId);
             playerController.SetInputEnabled(true);
             TransitionTo(RunState.Playing);
         }
@@ -323,7 +364,7 @@ namespace ZebraDash
                 tapJudgeEvents,
                 consumedTapIndices,
                 now,
-                e => e != null && (e.IsKind(BeatKinds.Tap) || e.IsKind(BeatKinds.Accent)));
+                e => e != null && e.IsKind(BeatKinds.Tap));
 
             if (outcome.EventIndex < 0 || outcome.Result == JudgeResult.Miss)
             {
@@ -390,16 +431,24 @@ namespace ZebraDash
                 }
 
                 ObstacleSpawner.SpawnDirective hazard = hazards[i];
-                BeatEvent evt = hazard.Event;
+                GameplayPatternEvent evt = hazard.PatternEvent;
                 if (evt == null)
                 {
                     resolvedHazards.Add(i);
                     continue;
                 }
 
-                int lane = Mathf.Clamp(evt.lane, 0, 1);
+                if (!evt.isHazard)
+                {
+                    if (now > hazard.EndTimeSec + collisionWindowSec)
+                    {
+                        resolvedHazards.Add(i);
+                    }
+                    continue;
+                }
 
-                if (evt.IsKind(BeatKinds.Long))
+                int lane = Mathf.Clamp(evt.lane, 0, 1);
+                if (string.Equals(evt.kind, GameplayPatternKinds.HoldSlide, StringComparison.OrdinalIgnoreCase))
                 {
                     float start = hazard.HitTimeSec - collisionWindowSec;
                     float end = hazard.EndTimeSec + collisionWindowSec;
@@ -410,9 +459,10 @@ namespace ZebraDash
 
                     if (now >= start && now <= end)
                     {
-                        if (playerController.LaneIndex == lane)
+                        bool sameLane = playerController.LaneIndex == lane;
+                        if (sameLane && !playerController.IsHolding)
                         {
-                            FailRun("Long lane collision");
+                            FailRun("Hold required");
                             return;
                         }
                     }
@@ -421,7 +471,6 @@ namespace ZebraDash
                     {
                         resolvedHazards.Add(i);
                     }
-
                     continue;
                 }
 
@@ -436,7 +485,9 @@ namespace ZebraDash
                 {
                     if (playerController.LaneIndex == lane)
                     {
-                        FailRun(evt.IsKind(BeatKinds.Accent) ? "Accent collision" : "Tap collision");
+                        FailRun(string.Equals(evt.kind, GameplayPatternKinds.Fakeout, StringComparison.OrdinalIgnoreCase)
+                            ? "Fakeout collision"
+                            : "Jump collision");
                         return;
                     }
                 }
@@ -451,7 +502,7 @@ namespace ZebraDash
         private void TickSectionState(float now)
         {
             currentSectionState = "Active";
-            RestSectionEvent[] restSections = BeatMapEventUtils.GetRestSections(activeBeatMap);
+            RestSectionEvent[] restSections = activePattern.restSections ?? Array.Empty<RestSectionEvent>();
             for (int i = 0; i < restSections.Length; i++)
             {
                 if (now >= restSections[i].startSec && now <= restSections[i].endSec)
@@ -462,9 +513,58 @@ namespace ZebraDash
             }
         }
 
+        private void TickCameraShift(float now)
+        {
+            float shift = 0f;
+            for (int i = 0; i < cameraShiftEvents.Length; i++)
+            {
+                GameplayPatternEvent evt = cameraShiftEvents[i];
+                float start = evt.hitTimeSec;
+                float duration = Mathf.Max(0.14f, evt.endTimeSec - evt.hitTimeSec);
+                float end = start + duration;
+                if (now < start || now > end)
+                {
+                    continue;
+                }
+
+                float u = Mathf.Clamp01((now - start) / duration);
+                float envelope = Mathf.Sin(u * Mathf.PI);
+                shift += envelope * Mathf.Lerp(0.14f, 0.42f, evt.intensity);
+            }
+
+            worldShiftX = shift;
+            ApplyWorldShift();
+        }
+
+        private void ApplyWorldShift()
+        {
+            if (worldRoot != null)
+            {
+                worldRoot.localPosition = new Vector3(baseWorldPosition.x + worldShiftX, baseWorldPosition.y, baseWorldPosition.z);
+            }
+
+            if (targetCamera != null)
+            {
+                targetCamera.transform.position = new Vector3(
+                    baseCameraPosition.x + (worldShiftX * 0.08f),
+                    baseCameraPosition.y,
+                    baseCameraPosition.z);
+            }
+        }
+
+        private void ResetWorldShift()
+        {
+            worldShiftX = 0f;
+            ApplyWorldShift();
+        }
+
         private void TransitionTo(RunState newState)
         {
             state = newState;
+            if (newState != RunState.Playing)
+            {
+                ResetWorldShift();
+            }
             RunStateChanged?.Invoke(newState);
         }
 
@@ -480,6 +580,212 @@ namespace ZebraDash
             Vector3 viewport = new Vector3(0.33f, 0.5f, Mathf.Abs(targetCamera.transform.position.z));
             Vector3 position = targetCamera.ViewportToWorldPoint(viewport);
             playerTransform.position = new Vector3(position.x, playerTransform.position.y, 0f);
+        }
+
+        private void CacheBasePositions()
+        {
+            baseWorldPosition = worldRoot != null ? worldRoot.localPosition : Vector3.zero;
+            baseCameraPosition = targetCamera != null ? targetCamera.transform.position : Vector3.zero;
+        }
+
+        private static float ResolveTimelineStartSec(BeatMap source, MusicTrackEntry entry)
+        {
+            float startSec = 0f;
+            if (entry != null && entry.startTrimSec > 0.01f)
+            {
+                startSec = entry.startTrimSec;
+            }
+            else if (source != null && source.offsetSec > 0.01f)
+            {
+                startSec = source.offsetSec;
+            }
+
+            if (source?.events != null && source.events.Length > 0)
+            {
+                float firstEventSec = float.MaxValue;
+                for (int i = 0; i < source.events.Length; i++)
+                {
+                    BeatEvent evt = source.events[i];
+                    if (evt == null)
+                    {
+                        continue;
+                    }
+
+                    firstEventSec = Mathf.Min(firstEventSec, evt.timeSec);
+                }
+
+                if (firstEventSec < float.MaxValue)
+                {
+                    if (startSec <= 0.01f)
+                    {
+                        startSec = firstEventSec;
+                    }
+                    else
+                    {
+                        startSec = Mathf.Min(startSec, firstEventSec);
+                    }
+                }
+            }
+
+            return Mathf.Max(0f, startSec);
+        }
+
+        private static BeatMap BuildRuntimeBeatMap(BeatMap source, float timelineStartSec)
+        {
+            if (source == null)
+            {
+                return new BeatMap();
+            }
+
+            BeatEvent[] canonical = BeatMapEventUtils.GetCanonicalEvents(source);
+            RestSectionEvent[] restSections = BeatMapEventUtils.GetRestSections(source);
+
+            return new BeatMap
+            {
+                schemaVersion = source.schemaVersion,
+                trackId = source.trackId,
+                bpm = source.bpm,
+                offsetSec = 0f,
+                seed = source.seed,
+                sections = ShiftSections(source.sections, timelineStartSec),
+                restSections = ShiftRestSections(restSections, timelineStartSec),
+                events = ShiftEvents(canonical, timelineStartSec)
+            };
+        }
+
+        private static BeatSection[] ShiftSections(BeatSection[] sections, float shiftSec)
+        {
+            if (sections == null || sections.Length == 0)
+            {
+                return Array.Empty<BeatSection>();
+            }
+
+            var output = new List<BeatSection>(sections.Length);
+            for (int i = 0; i < sections.Length; i++)
+            {
+                BeatSection section = sections[i];
+                if (section == null)
+                {
+                    continue;
+                }
+
+                float start = section.startSec - shiftSec;
+                float end = section.endSec - shiftSec;
+                if (end <= 0f)
+                {
+                    continue;
+                }
+
+                output.Add(new BeatSection
+                {
+                    type = section.type,
+                    startSec = Mathf.Max(0f, start),
+                    endSec = Mathf.Max(0f, end),
+                    density = section.density,
+                    intensity = section.intensity
+                });
+            }
+
+            return output.ToArray();
+        }
+
+        private static RestSectionEvent[] ShiftRestSections(RestSectionEvent[] sections, float shiftSec)
+        {
+            if (sections == null || sections.Length == 0)
+            {
+                return Array.Empty<RestSectionEvent>();
+            }
+
+            var output = new List<RestSectionEvent>(sections.Length);
+            for (int i = 0; i < sections.Length; i++)
+            {
+                RestSectionEvent section = sections[i];
+                if (section == null)
+                {
+                    continue;
+                }
+
+                float start = section.startSec - shiftSec;
+                float end = section.endSec - shiftSec;
+                if (end <= 0f)
+                {
+                    continue;
+                }
+
+                output.Add(new RestSectionEvent
+                {
+                    startSec = Mathf.Max(0f, start),
+                    endSec = Mathf.Max(0f, end)
+                });
+            }
+
+            return output.ToArray();
+        }
+
+        private static BeatEvent[] ShiftEvents(BeatEvent[] events, float shiftSec)
+        {
+            if (events == null || events.Length == 0)
+            {
+                return Array.Empty<BeatEvent>();
+            }
+
+            var output = new List<BeatEvent>(events.Length);
+            for (int i = 0; i < events.Length; i++)
+            {
+                BeatEvent evt = events[i];
+                if (evt == null)
+                {
+                    continue;
+                }
+
+                float start = evt.timeSec - shiftSec;
+                float end = evt.GetEndTimeSec() - shiftSec;
+                if (end <= -0.001f)
+                {
+                    continue;
+                }
+
+                float clampedStart = Mathf.Max(0f, start);
+                float clampedEnd = Mathf.Max(clampedStart, end);
+                output.Add(new BeatEvent
+                {
+                    timeSec = clampedStart,
+                    endTimeSec = clampedEnd,
+                    durationSec = Mathf.Max(0f, clampedEnd - clampedStart),
+                    lane = evt.lane,
+                    laneTo = evt.laneTo,
+                    kind = evt.kind,
+                    intensity = evt.intensity,
+                    prefabId = evt.prefabId,
+                    motion = evt.motion
+                });
+            }
+
+            return output
+                .OrderBy(e => e.timeSec)
+                .ToArray();
+        }
+
+        private static BeatEvent[] BuildJudgeEvents(GameplayPattern pattern)
+        {
+            if (pattern?.events == null)
+            {
+                return Array.Empty<BeatEvent>();
+            }
+
+            return pattern.events
+                .Where(e => e != null && e.isHazard && string.Equals(e.kind, GameplayPatternKinds.Jump, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(e => e.hitTimeSec)
+                .Select(e => new BeatEvent
+                {
+                    timeSec = e.hitTimeSec,
+                    endTimeSec = e.hitTimeSec,
+                    lane = e.lane,
+                    kind = BeatKinds.Tap,
+                    intensity = e.intensity,
+                    prefabId = "tap_basic"
+                })
+                .ToArray();
         }
 
         private static float EstimateLevelDuration(BeatMap map)
@@ -508,6 +814,11 @@ namespace ZebraDash
             }
 
             return Mathf.Max(duration + 1f, 20f);
+        }
+
+        private static float LoadDeviceOffsetSec()
+        {
+            return PlayerPrefs.GetFloat(DeviceOffsetPrefsKey, 0f);
         }
     }
 }

@@ -2,12 +2,12 @@
 setlocal
 cd /d "%~dp0"
 
-echo [MiniLab] ZebraDash one-click dev build/install started...
+echo [MiniLab] ZebraDash one-click deploy started...
 
-pwsh -NoProfile -ExecutionPolicy Bypass -File "tools\dev-build-install.ps1"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "tools\deploy-zebradash-dev.ps1"
 if errorlevel 1 (
   echo.
-  echo [MiniLab] FAILED: Dev build/install pipeline failed. Check logs under BuildArtifacts.
+  echo [MiniLab] FAILED: Deploy pipeline failed. Check logs under BuildArtifacts.
   pause
   exit /b 1
 )

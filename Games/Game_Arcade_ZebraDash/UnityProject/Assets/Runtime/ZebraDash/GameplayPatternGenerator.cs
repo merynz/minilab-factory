@@ -1,0 +1,255 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using MiniLab.Core.Rhythm;
+using UnityEngine;
+
+namespace ZebraDash
+{
+    public static class GameplayPatternKinds
+    {
+        public const string Jump = "Jump";
+        public const string HoldSlide = "HoldSlide";
+        public const string Rest = "Rest";
+        public const string Fakeout = "Fakeout";
+        public const string AccentPulse = "AccentPulse";
+        public const string CameraShift = "CameraShift";
+    }
+
+    [Serializable]
+    public sealed class GameplayPatternEvent
+    {
+        public string kind = GameplayPatternKinds.Jump;
+        public float hitTimeSec;
+        public float endTimeSec;
+        public int lane;
+        public float intensity = 0.6f;
+        public bool isHazard = true;
+        public float travelTimeSec = 1.25f;
+        public string sourceKind = BeatKinds.Tap;
+    }
+
+    [Serializable]
+    public sealed class GameplayPattern
+    {
+        public int seed;
+        public float difficulty = 1f;
+        public GameplayPatternEvent[] events = Array.Empty<GameplayPatternEvent>();
+        public RestSectionEvent[] restSections = Array.Empty<RestSectionEvent>();
+    }
+
+    public static class GameplayPatternGenerator
+    {
+        public static GameplayPattern Build(BeatMap beatMap, string trackId, float difficulty = 1f)
+        {
+            if (beatMap == null)
+            {
+                return new GameplayPattern();
+            }
+
+            BeatEvent[] canonical = BeatMapEventUtils.GetCanonicalEvents(beatMap);
+            RestSectionEvent[] rests = BeatMapEventUtils.GetRestSections(beatMap);
+            if (rests == null || rests.Length == 0)
+            {
+                rests = BuildFallbackRests(canonical);
+            }
+
+            int seed = ComputeSeed(beatMap.seed, trackId);
+            var rng = new System.Random(seed);
+            float difficulty01 = Mathf.Clamp01(difficulty);
+            float fakeoutChance = Mathf.Lerp(0.24f, 0.10f, difficulty01);
+
+            var events = new List<GameplayPatternEvent>(canonical.Length * 2);
+            int lane = 0;
+            int laneStreak = 0;
+
+            for (int i = 0; i < canonical.Length; i++)
+            {
+                BeatEvent source = canonical[i];
+                if (source == null)
+                {
+                    continue;
+                }
+
+                if (BeatMapEventUtils.IsRestTime(beatMap, source.timeSec))
+                {
+                    continue;
+                }
+
+                lane = ResolveLane(source, lane, ref laneStreak, rng);
+                float intensity = Mathf.Clamp01(source.intensity <= 0f ? 0.6f : source.intensity);
+
+                if (source.IsKind(BeatKinds.Long))
+                {
+                    events.Add(new GameplayPatternEvent
+                    {
+                        kind = GameplayPatternKinds.HoldSlide,
+                        hitTimeSec = source.timeSec,
+                        endTimeSec = Mathf.Max(source.GetEndTimeSec(), source.timeSec + 0.8f),
+                        lane = lane,
+                        intensity = intensity,
+                        isHazard = true,
+                        travelTimeSec = 1.35f,
+                        sourceKind = BeatKinds.Long
+                    });
+                    continue;
+                }
+
+                bool accent = source.IsKind(BeatKinds.Accent);
+                bool fakeout = !accent && rng.NextDouble() < fakeoutChance;
+                string kind = fakeout ? GameplayPatternKinds.Fakeout : GameplayPatternKinds.Jump;
+
+                events.Add(new GameplayPatternEvent
+                {
+                    kind = kind,
+                    hitTimeSec = source.timeSec,
+                    endTimeSec = source.timeSec,
+                    lane = lane,
+                    intensity = intensity,
+                    isHazard = !fakeout,
+                    travelTimeSec = accent ? 1.35f : 1.25f,
+                    sourceKind = accent ? BeatKinds.Accent : BeatKinds.Tap
+                });
+
+                if (accent)
+                {
+                    events.Add(new GameplayPatternEvent
+                    {
+                        kind = GameplayPatternKinds.AccentPulse,
+                        hitTimeSec = source.timeSec,
+                        endTimeSec = source.timeSec,
+                        lane = lane,
+                        intensity = intensity,
+                        isHazard = false,
+                        travelTimeSec = 0f,
+                        sourceKind = BeatKinds.Accent
+                    });
+
+                    events.Add(new GameplayPatternEvent
+                    {
+                        kind = GameplayPatternKinds.CameraShift,
+                        hitTimeSec = source.timeSec,
+                        endTimeSec = source.timeSec + 0.32f,
+                        lane = lane,
+                        intensity = intensity,
+                        isHazard = false,
+                        travelTimeSec = 0f,
+                        sourceKind = BeatKinds.Accent
+                    });
+                }
+            }
+
+            for (int i = 0; i < rests.Length; i++)
+            {
+                RestSectionEvent rest = rests[i];
+                if (rest == null || rest.endSec <= rest.startSec)
+                {
+                    continue;
+                }
+
+                events.Add(new GameplayPatternEvent
+                {
+                    kind = GameplayPatternKinds.Rest,
+                    hitTimeSec = rest.startSec,
+                    endTimeSec = rest.endSec,
+                    lane = 0,
+                    intensity = 0.1f,
+                    isHazard = false,
+                    travelTimeSec = 0f,
+                    sourceKind = BeatKinds.RestSection
+                });
+            }
+
+            GameplayPatternEvent[] sorted = events
+                .OrderBy(e => e.hitTimeSec)
+                .ThenBy(e => e.kind)
+                .ToArray();
+
+            return new GameplayPattern
+            {
+                seed = seed,
+                difficulty = difficulty01,
+                events = sorted,
+                restSections = rests
+            };
+        }
+
+        private static int ResolveLane(BeatEvent source, int currentLane, ref int currentStreak, System.Random rng)
+        {
+            int lane = Mathf.Clamp(source.lane, 0, 1);
+            if (lane != currentLane)
+            {
+                currentLane = lane;
+                currentStreak = 1;
+                return currentLane;
+            }
+
+            currentStreak++;
+            if (currentStreak >= 4)
+            {
+                currentLane = 1 - currentLane;
+                currentStreak = 1;
+                return currentLane;
+            }
+
+            // Add deterministic lane motion even when source lane is flat.
+            if (rng.NextDouble() < 0.28d)
+            {
+                currentLane = 1 - currentLane;
+                currentStreak = 1;
+            }
+
+            return currentLane;
+        }
+
+        private static RestSectionEvent[] BuildFallbackRests(BeatEvent[] events)
+        {
+            float maxTime = 0f;
+            for (int i = 0; i < events.Length; i++)
+            {
+                BeatEvent evt = events[i];
+                if (evt == null)
+                {
+                    continue;
+                }
+
+                maxTime = Mathf.Max(maxTime, evt.GetEndTimeSec());
+            }
+
+            if (maxTime <= 12f)
+            {
+                return Array.Empty<RestSectionEvent>();
+            }
+
+            var rest = new List<RestSectionEvent>();
+            float cursor = 8f;
+            while (cursor < maxTime - 2.5f)
+            {
+                rest.Add(new RestSectionEvent
+                {
+                    startSec = cursor,
+                    endSec = Mathf.Min(maxTime - 0.5f, cursor + 2.2f)
+                });
+                cursor += 10f;
+            }
+
+            return rest.ToArray();
+        }
+
+        private static int ComputeSeed(int baseSeed, string trackId)
+        {
+            unchecked
+            {
+                int hash = 216613626;
+                string id = string.IsNullOrWhiteSpace(trackId) ? "default_track" : trackId.Trim();
+                for (int i = 0; i < id.Length; i++)
+                {
+                    hash ^= id[i];
+                    hash *= 16777619;
+                }
+
+                return baseSeed ^ hash;
+            }
+        }
+    }
+}

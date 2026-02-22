@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
-using MiniLab.Core.Rhythm;
 using UnityEngine;
 
 namespace ZebraDash
 {
     public sealed class ObstacleSpawner : MonoBehaviour
     {
-        [SerializeField] private BeatClock beatClock;
         [SerializeField] private LevelRunner levelRunner;
         [SerializeField] private float spawnX = 14f;
         [SerializeField] private float hitX = -4f;
@@ -17,14 +15,13 @@ namespace ZebraDash
         private readonly List<SpawnDirective> directives = new List<SpawnDirective>(1024);
         private readonly List<ObstacleKinematics> active = new List<ObstacleKinematics>(128);
         private readonly Stack<ObstacleKinematics> pool = new Stack<ObstacleKinematics>(128);
-        private static Material cachedObstacleMaterial;
-
+        private GameplayPattern pattern;
         private int spawnIndex;
 
         [Serializable]
         public struct SpawnDirective
         {
-            public BeatEvent Event;
+            public GameplayPatternEvent PatternEvent;
             public float SpawnTimeSec;
             public float TravelTimeSec;
             public float HitTimeSec;
@@ -33,53 +30,45 @@ namespace ZebraDash
         }
 
         public IReadOnlyList<SpawnDirective> Directives => directives;
+        public GameplayPattern Pattern => pattern;
 
-        public void Configure(BeatMap map)
+        public void Configure(GameplayPattern sourcePattern)
         {
-            if (beatClock == null)
-            {
-                beatClock = GetComponent<BeatClock>();
-            }
-
             if (levelRunner == null)
             {
                 levelRunner = GetComponent<LevelRunner>();
             }
 
+            pattern = sourcePattern ?? new GameplayPattern();
             directives.Clear();
             active.Clear();
             spawnIndex = 0;
 
-            BeatEvent[] canonical = BeatMapEventUtils.GetCanonicalEvents(map);
-            for (int i = 0; i < canonical.Length; i++)
+            if (pattern.events == null || pattern.events.Length == 0)
             {
-                BeatEvent evt = canonical[i];
-                if (evt == null)
+                return;
+            }
+
+            for (int i = 0; i < pattern.events.Length; i++)
+            {
+                GameplayPatternEvent evt = pattern.events[i];
+                if (evt == null || !IsSpawnable(evt.kind))
                 {
                     continue;
                 }
 
-                if (!(evt.IsKind(BeatKinds.Tap) || evt.IsKind(BeatKinds.Accent) || evt.IsKind(BeatKinds.Long)))
-                {
-                    continue;
-                }
+                float travel = ResolveTravelTime(evt);
+                float hitTime = evt.hitTimeSec;
+                float endTime = Mathf.Max(evt.endTimeSec, hitTime);
 
-                if (BeatMapEventUtils.IsRestTime(map, evt.timeSec))
-                {
-                    continue;
-                }
-
-                float travel = ResolveTravelTime(evt.kind);
-                float hitTime = evt.timeSec;
-                float endTime = evt.IsKind(BeatKinds.Long) ? evt.GetEndTimeSec() : hitTime;
                 directives.Add(new SpawnDirective
                 {
-                    Event = evt,
+                    PatternEvent = evt,
                     TravelTimeSec = travel,
                     HitTimeSec = hitTime,
                     EndTimeSec = endTime,
                     SpawnTimeSec = hitTime - travel,
-                    Seed = map.seed + (i * 37)
+                    Seed = pattern.seed + (i * 37)
                 });
             }
 
@@ -120,25 +109,26 @@ namespace ZebraDash
 
         private void Spawn(SpawnDirective directive)
         {
+            GameplayPatternEvent patternEvent = directive.PatternEvent;
             ObstacleKinematics obstacle = pool.Count > 0 ? pool.Pop() : CreateNewObstacle();
             obstacle.gameObject.SetActive(true);
 
-            int lane = Mathf.Clamp(directive.Event.lane, 0, 1);
+            int lane = Mathf.Clamp(patternEvent.lane, 0, 1);
             float laneY = lane == 0 ? lowerLaneY : upperLaneY;
             obstacle.Configure(
-                beatClock,
-                directive.Event.kind,
-                lane,
-                directive.SpawnTimeSec,
-                directive.HitTimeSec,
-                directive.EndTimeSec,
-                spawnX,
-                hitX,
-                directive.TravelTimeSec,
-                laneY,
-                directive.Event.intensity,
-                directive.Seed);
+                eventKind: patternEvent.kind,
+                lane: lane,
+                spawnTime: directive.SpawnTimeSec,
+                hitTime: directive.HitTimeSec,
+                endTime: directive.EndTimeSec,
+                startX: spawnX,
+                targetX: hitX,
+                travelTime: directive.TravelTimeSec,
+                targetLaneY: laneY,
+                eventIntensity: patternEvent.intensity,
+                seed: directive.Seed);
 
+            ConfigureVisual(obstacle, patternEvent);
             active.Add(obstacle);
         }
 
@@ -158,15 +148,7 @@ namespace ZebraDash
             Renderer renderer = go.GetComponent<Renderer>();
             if (renderer != null)
             {
-                Material material = GetObstacleMaterial();
-                if (material != null)
-                {
-                    renderer.sharedMaterial = material;
-                }
-                else
-                {
-                    renderer.material.color = new Color(0.16f, 0.9f, 0.95f, 1f);
-                }
+                renderer.material = BuildDefaultMaterial();
             }
 
             ObstacleKinematics obstacle = go.GetComponent<ObstacleKinematics>();
@@ -179,44 +161,61 @@ namespace ZebraDash
             return obstacle;
         }
 
-        private static float ResolveTravelTime(string kind)
+        private static Material BuildDefaultMaterial()
         {
-            if (string.Equals(kind, BeatKinds.Accent, StringComparison.OrdinalIgnoreCase))
+            Material material = RenderMaterialUtils.CreateSolidMaterial(new Color(0.16f, 0.9f, 0.95f, 1f));
+            return material ?? new Material(Shader.Find("Sprites/Default"));
+        }
+
+        private static void ConfigureVisual(ObstacleKinematics obstacle, GameplayPatternEvent evt)
+        {
+            var renderer = obstacle.GetComponent<Renderer>();
+            if (renderer == null || renderer.material == null)
+            {
+                return;
+            }
+
+            Color color;
+            if (string.Equals(evt.kind, GameplayPatternKinds.HoldSlide, StringComparison.OrdinalIgnoreCase))
+            {
+                color = new Color(0.95f, 0.88f, 0.28f, 1f);
+            }
+            else if (string.Equals(evt.kind, GameplayPatternKinds.Fakeout, StringComparison.OrdinalIgnoreCase))
+            {
+                color = new Color(0.78f, 0.78f, 0.82f, 0.35f);
+            }
+            else if (evt.intensity >= 0.85f)
+            {
+                color = new Color(1f, 0.54f, 0.26f, 1f);
+            }
+            else
+            {
+                color = new Color(0.16f, 0.9f, 0.95f, evt.isHazard ? 1f : 0.45f);
+            }
+
+            RenderMaterialUtils.ApplyColor(renderer.material, color);
+        }
+
+        private static bool IsSpawnable(string kind)
+        {
+            return string.Equals(kind, GameplayPatternKinds.Jump, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(kind, GameplayPatternKinds.HoldSlide, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(kind, GameplayPatternKinds.Fakeout, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static float ResolveTravelTime(GameplayPatternEvent evt)
+        {
+            if (evt != null && evt.travelTimeSec > 0.01f)
+            {
+                return evt.travelTimeSec;
+            }
+
+            if (evt != null && string.Equals(evt.kind, GameplayPatternKinds.HoldSlide, StringComparison.OrdinalIgnoreCase))
             {
                 return 1.35f;
             }
 
-            if (string.Equals(kind, BeatKinds.Long, StringComparison.OrdinalIgnoreCase))
-            {
-                return 1.25f;
-            }
-
             return 1.25f;
-        }
-
-        private static Material GetObstacleMaterial()
-        {
-            if (cachedObstacleMaterial != null)
-            {
-                return cachedObstacleMaterial;
-            }
-
-            Shader shader = Shader.Find("Unlit/Color");
-            if (shader == null)
-            {
-                shader = Shader.Find("Sprites/Default");
-            }
-
-            if (shader == null)
-            {
-                return null;
-            }
-
-            cachedObstacleMaterial = new Material(shader)
-            {
-                color = new Color(0.16f, 0.9f, 0.95f, 1f)
-            };
-            return cachedObstacleMaterial;
         }
     }
 }

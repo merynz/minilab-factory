@@ -1,11 +1,9 @@
-using MiniLab.Core.Rhythm;
 using UnityEngine;
 
 namespace ZebraDash
 {
     public sealed class ObstacleKinematics : MonoBehaviour
     {
-        private BeatClock beatClock;
         private float spawnTimeSec;
         private float hitTimeSec;
         private float endTimeSec;
@@ -15,7 +13,7 @@ namespace ZebraDash
         private float travelTimeSec;
         private float intensity;
         private float wobbleSeed;
-        private string kind = BeatKinds.Tap;
+        private string kind = GameplayPatternKinds.Jump;
         private bool initialized;
 
         public bool IsActiveVisual => initialized;
@@ -25,7 +23,6 @@ namespace ZebraDash
         public string Kind => kind;
 
         public void Configure(
-            BeatClock clock,
             string eventKind,
             int lane,
             float spawnTime,
@@ -38,8 +35,7 @@ namespace ZebraDash
             float eventIntensity,
             int seed)
         {
-            beatClock = clock;
-            kind = string.IsNullOrWhiteSpace(eventKind) ? BeatKinds.Tap : eventKind;
+            kind = string.IsNullOrWhiteSpace(eventKind) ? GameplayPatternKinds.Jump : eventKind;
             Lane = lane;
             spawnTimeSec = spawnTime;
             hitTimeSec = hitTime;
@@ -52,15 +48,20 @@ namespace ZebraDash
             wobbleSeed = seed * 0.173f;
             initialized = true;
 
-            transform.localScale = kind == BeatKinds.Accent
-                ? new Vector3(1.4f, 1.4f, 1f)
-                : new Vector3(1f, 1f, 1f);
-
-            if (kind == BeatKinds.Long)
+            if (IsHold())
             {
-                float span = Mathf.Max(0.15f, endTimeSec - hitTimeSec);
-                float width = Mathf.Clamp((span / travelTimeSec) * Mathf.Abs(spawnX - hitX), 1.2f, 8f);
-                transform.localScale = new Vector3(width, 1.1f, 1f);
+                float span = Mathf.Max(0.2f, endTimeSec - hitTimeSec);
+                float width = Mathf.Clamp((span / travelTimeSec) * Mathf.Abs(spawnX - hitX), 1.2f, 9f);
+                transform.localScale = new Vector3(width, 1.05f, 1f);
+            }
+            else if (IsFakeout())
+            {
+                transform.localScale = new Vector3(0.95f, 0.95f, 1f);
+            }
+            else
+            {
+                float accentScale = Mathf.Lerp(1f, 1.25f, intensity);
+                transform.localScale = new Vector3(accentScale, accentScale, 1f);
             }
 
             UpdateVisual(hitTimeSec - 0.01f);
@@ -90,22 +91,34 @@ namespace ZebraDash
             float x = Mathf.Lerp(spawnX, hitX, t);
             float y = laneY;
 
-            if (kind == BeatKinds.Tap)
+            if (IsHold())
+            {
+                y += 0.14f * Mathf.Sin((nowSec * 2.3f) + wobbleSeed);
+                x -= transform.localScale.x * 0.45f;
+            }
+            else if (IsFakeout())
+            {
+                y += 0.06f * Mathf.Sin((nowSec * 4.4f) + wobbleSeed);
+                transform.localScale = new Vector3(0.95f, Mathf.Lerp(0.78f, 1.05f, t), 1f);
+            }
+            else
             {
                 y += 0.08f * Mathf.Sin((nowSec * 8f) + wobbleSeed);
-            }
-            else if (kind == BeatKinds.Accent)
-            {
-                float scalePulse = 1f + (0.25f * (1f - Mathf.Clamp01(Mathf.Abs(nowSec - hitTimeSec) / 0.25f)));
-                transform.localScale = new Vector3(1.35f * scalePulse, 1.35f * scalePulse, 1f);
-            }
-            else if (kind == BeatKinds.Long)
-            {
-                y += 0.16f * Mathf.Sin((nowSec * 2.4f) + wobbleSeed);
-                x -= transform.localScale.x * 0.45f;
+                float pulse = 1f + (0.22f * (1f - Mathf.Clamp01(Mathf.Abs(nowSec - hitTimeSec) / 0.24f)) * intensity);
+                transform.localScale = new Vector3(pulse, pulse, 1f);
             }
 
             transform.position = new Vector3(x, y, 0f);
+        }
+
+        private bool IsHold()
+        {
+            return string.Equals(kind, GameplayPatternKinds.HoldSlide, System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsFakeout()
+        {
+            return string.Equals(kind, GameplayPatternKinds.Fakeout, System.StringComparison.OrdinalIgnoreCase);
         }
     }
 }
