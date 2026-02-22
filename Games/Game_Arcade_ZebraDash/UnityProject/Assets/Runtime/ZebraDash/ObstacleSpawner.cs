@@ -110,6 +110,16 @@ namespace ZebraDash
         private void Spawn(SpawnDirective directive)
         {
             GameplayPatternEvent patternEvent = directive.PatternEvent;
+            if (patternEvent == null)
+            {
+                return;
+            }
+
+            if (directive.SpawnTimeSec > directive.HitTimeSec + 0.001f)
+            {
+                Debug.LogError($"[ZebraDash] Invalid spawn timing for {patternEvent.archetype}: spawn {directive.SpawnTimeSec:F3} > hit {directive.HitTimeSec:F3}");
+            }
+
             ObstacleKinematics obstacle = pool.Count > 0 ? pool.Pop() : CreateNewObstacle();
             obstacle.gameObject.SetActive(true);
 
@@ -180,6 +190,14 @@ namespace ZebraDash
             if (string.Equals(evt.kind, GameplayPatternKinds.HoldSlide, StringComparison.OrdinalIgnoreCase))
             {
                 color = new Color(0.95f, 0.88f, 0.28f, 1f);
+            }
+            else if (string.Equals(evt.archetype, GameplayArchetypes.AccentCrusher, StringComparison.OrdinalIgnoreCase))
+            {
+                color = new Color(1f, 0.48f, 0.22f, 1f);
+            }
+            else if (string.Equals(evt.archetype, GameplayArchetypes.CrossGate, StringComparison.OrdinalIgnoreCase))
+            {
+                color = new Color(0.98f, 0.62f, 0.24f, 1f);
             }
             else if (string.Equals(evt.kind, GameplayPatternKinds.Fakeout, StringComparison.OrdinalIgnoreCase))
             {

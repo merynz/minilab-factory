@@ -9,6 +9,10 @@ namespace ZebraDash
         private readonly List<ParallaxLayer> layers = new List<ParallaxLayer>();
         private float pulseStrength;
         private float lastSongTimeSec;
+        private float speedMultiplier = 1f;
+        private float speedMultiplierTarget = 1f;
+        private float bobMultiplier = 1f;
+        private float bobMultiplierTarget = 1f;
         private bool initialized;
         private Transform layerRoot;
 
@@ -105,12 +109,14 @@ namespace ZebraDash
             }
 
             pulseStrength = Mathf.MoveTowards(pulseStrength, 0f, delta * 2.2f);
+            speedMultiplier = Mathf.MoveTowards(speedMultiplier, speedMultiplierTarget, delta * 1.6f);
+            bobMultiplier = Mathf.MoveTowards(bobMultiplier, bobMultiplierTarget, delta * 1.6f);
 
             for (int i = 0; i < layers.Count; i++)
             {
                 ParallaxLayer layer = layers[i];
-                float wrappedX = -Mathf.Repeat(songTimeSec * layer.Speed, layer.Width);
-                float bob = Mathf.Sin((songTimeSec * layer.BobFreq) + layer.Phase) * layer.BobAmp;
+                float wrappedX = -Mathf.Repeat(songTimeSec * layer.Speed * speedMultiplier, layer.Width);
+                float bob = Mathf.Sin((songTimeSec * layer.BobFreq * bobMultiplier) + layer.Phase) * (layer.BobAmp * bobMultiplier);
                 float pulse = pulseStrength * layer.PulseScale;
                 float y = layer.BaseY + bob + pulse;
 
@@ -122,6 +128,27 @@ namespace ZebraDash
         public void PushAccent(float intensity)
         {
             pulseStrength = Mathf.Max(pulseStrength, Mathf.Lerp(0.16f, 0.55f, Mathf.Clamp01(intensity)));
+        }
+
+        public void SetSectionMood(string sectionType, float currentStrain, float targetStrain)
+        {
+            float blend = Mathf.Clamp01(Mathf.Lerp(currentStrain, targetStrain, 0.5f));
+            if (string.Equals(sectionType, GameplaySectionTypes.Rest, StringComparison.OrdinalIgnoreCase))
+            {
+                speedMultiplierTarget = 0.55f;
+                bobMultiplierTarget = 0.70f;
+                return;
+            }
+
+            if (string.Equals(sectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase))
+            {
+                speedMultiplierTarget = Mathf.Lerp(1.10f, 1.35f, blend);
+                bobMultiplierTarget = Mathf.Lerp(1.05f, 1.30f, blend);
+                return;
+            }
+
+            speedMultiplierTarget = Mathf.Lerp(0.90f, 1.10f, blend);
+            bobMultiplierTarget = Mathf.Lerp(0.95f, 1.05f, blend);
         }
 
         private void AddLayer(

@@ -54,6 +54,7 @@ namespace ZebraDash
         private bool resultSceneQueued;
         private readonly List<float> accentHitTimes = new List<float>();
         private int nextAccentIndex;
+        private bool debugOverlayVisible = true;
 
         private ResultSnapshot lastResult;
 
@@ -111,6 +112,7 @@ namespace ZebraDash
             Screen.autorotateToLandscapeRight = false;
             Screen.autorotateToPortrait = false;
             Screen.autorotateToPortraitUpsideDown = false;
+            debugOverlayVisible = Debug.isDebugBuild || Application.isEditor;
         }
 
         private void OnEnable()
@@ -137,10 +139,19 @@ namespace ZebraDash
             {
                 float songTime = runner != null ? runner.SongTimeSec : 0f;
                 bool isPlaying = runner != null && runner.State == RunState.Playing;
+                if (runner != null)
+                {
+                    parallaxSystem.SetSectionMood(runner.CurrentSectionState, runner.CurrentStrain, runner.TargetStrain);
+                }
                 parallaxSystem.Tick(songTime, isPlaying);
             }
 
             TickPulseOverlay();
+
+            if (Input.GetKeyDown(KeyCode.F3))
+            {
+                debugOverlayVisible = !debugOverlayVisible;
+            }
 
             if (runner == null)
             {
@@ -163,6 +174,7 @@ namespace ZebraDash
             if (hudText != null)
             {
                 hudText.text = BuildHudLine();
+                hudText.enabled = debugOverlayVisible;
             }
 
             if (countdownText != null)
@@ -360,7 +372,7 @@ namespace ZebraDash
             hudText.rectTransform.anchorMin = new Vector2(0.02f, 0.96f);
             hudText.rectTransform.anchorMax = new Vector2(0.98f, 0.96f);
             hudText.rectTransform.pivot = new Vector2(0f, 1f);
-            hudText.rectTransform.sizeDelta = new Vector2(0f, 120f);
+            hudText.rectTransform.sizeDelta = new Vector2(0f, 196f);
 
             countdownText = CreateLabel("", new Vector2(0.5f, 0.55f), 88, TextAnchor.MiddleCenter);
 
@@ -547,9 +559,12 @@ namespace ZebraDash
                 $"Track: {(selectedTrack != null ? selectedTrack.trackId : "-")}   " +
                 $"State: {runner.State}   " +
                 $"Beat: {runner.CurrentBeat}   " +
-                $"Offset: {runner.OffsetMs:F1} ms   Device: {runner.DeviceOffsetMs:F1} ms   Progress: {runner.Progress01 * 100f:F0}%\n" +
-                $"Judge: {runner.LastJudge}   Combo: {runner.Combo}   Score: {runner.Score}   " +
-                $"P/G/M: {runner.PerfectCount}/{runner.GoodCount}/{runner.MissCount}   Section: {runner.CurrentSectionState}";
+                $"Progress: {runner.Progress01 * 100f:F0}%   DSP: {beatClock.DspNow:F3}   BeatMs: {runner.BeatMs:F1}\n" +
+                $"Offset: track {runner.OffsetMs:F1} ms / device {runner.DeviceOffsetMs:F1} ms / phase {runner.SessionPhaseMs:F2} ms   " +
+                $"LastTap: {runner.LastTapOffsetMs:+0.0;-0.0;0.0} ms   EmptyTap: {runner.LastEmptyTapDecision}\n" +
+                $"Judge: {runner.LastJudge}   Combo: {runner.Combo}   Score: {runner.Score}   P/G/M: {runner.PerfectCount}/{runner.GoodCount}/{runner.MissCount}\n" +
+                $"Section: {runner.CurrentSectionState} ({runner.CurrentStrain:F2}/{runner.TargetStrain:F2}) preset:{runner.CurrentPresetId}   " +
+                $"Next: {runner.NextHazardsDebug}";
         }
 
         private void LoadScene(string sceneName)

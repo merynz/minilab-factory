@@ -11,6 +11,13 @@ namespace MiniLab.Core.Rhythm
         Miss = 2
     }
 
+    public enum EmptyTapDecision
+    {
+        Ignored = 0,
+        Miss = 1,
+        Matched = 2
+    }
+
     [Serializable]
     public sealed class JudgeWindows
     {
@@ -36,13 +43,33 @@ namespace MiniLab.Core.Rhythm
 
     public sealed class InputJudge
     {
+        private const float SessionPhaseMinMs = -70f;
+        private const float SessionPhaseMaxMs = 70f;
+        private const float PhaseErrorClampMs = 12f;
+        private const float PerfectPhaseAlpha = 0.015f;
+        private const float GoodPhaseAlpha = 0.007f;
+
+        private const float PerfectScaleRatio = 0.10f;
+        private const float GoodScaleRatio = 0.22f;
+        private const float PerfectMinMs = 30f;
+        private const float PerfectMaxMs = 46f;
+        private const float GoodMinMs = 68f;
+        private const float GoodMaxMs = 98f;
+
         public float DeviceOffsetSec { get; private set; }
+        public float SessionPhaseMs { get; private set; }
+        public float LastTapOffsetMs { get; private set; }
+        public float CurrentBpm { get; private set; } = 120f;
+        public float CurrentBeatMs => CurrentBpm > 0.001f ? 60000f / CurrentBpm : 500f;
+        public float EffectivePerfectMs { get; private set; }
+        public float EffectiveGoodMs { get; private set; }
 
         private readonly JudgeWindows windows;
 
         public InputJudge(JudgeWindows judgeWindows)
         {
             windows = judgeWindows ?? new JudgeWindows();
+            ConfigureForBpm(CurrentBpm);
         }
 
         public void SetDeviceOffset(float offsetSec)
@@ -50,16 +77,34 @@ namespace MiniLab.Core.Rhythm
             DeviceOffsetSec = offsetSec;
         }
 
+        public void ConfigureForBpm(float bpm)
+        {
+            CurrentBpm = Math.Max(1f, bpm);
+            float beatMs = CurrentBeatMs;
+            EffectivePerfectMs = Clamp(beatMs * PerfectScaleRatio, PerfectMinMs, PerfectMaxMs);
+            EffectiveGoodMs = Math.Max(EffectivePerfectMs, Clamp(beatMs * GoodScaleRatio, GoodMinMs, GoodMaxMs));
+        }
+
+        public void ResetSessionPhase()
+        {
+            SessionPhaseMs = 0f;
+            LastTapOffsetMs = 0f;
+        }
+
         public JudgeResult Evaluate(float noteTimeSec, float inputTimeSec)
         {
-            float deltaMs = Math.Abs((inputTimeSec + DeviceOffsetSec - noteTimeSec) * 1000f);
-            if (deltaMs <= windows.perfectMs)
+            float signedErrorMs = ComputeSignedErrorMs(noteTimeSec, inputTimeSec);
+            LastTapOffsetMs = signedErrorMs;
+            float deltaMs = Math.Abs(signedErrorMs);
+            if (deltaMs <= EffectivePerfectMs)
             {
+                UpdateSessionPhase(signedErrorMs, JudgeResult.Perfect);
                 return JudgeResult.Perfect;
             }
 
-            if (deltaMs <= windows.goodMs)
+            if (deltaMs <= EffectiveGoodMs)
             {
+                UpdateSessionPhase(signedErrorMs, JudgeResult.Good);
                 return JudgeResult.Good;
             }
 
@@ -95,13 +140,14 @@ namespace MiniLab.Core.Rhythm
                     continue;
                 }
 
-                float deltaMs = (correctedInput - evt.timeSec) * 1000f;
+                float deltaMs = ((correctedInput - evt.timeSec) * 1000f) - SessionPhaseMs;
                 float absDeltaMs = Math.Abs(deltaMs);
                 if (absDeltaMs < nearestAbsDeltaMs)
                 {
                     nearestAbsDeltaMs = absDeltaMs;
                     nearest = evt;
                     nearestIndex = i;
+                    LastTapOffsetMs = deltaMs;
                 }
             }
 
@@ -111,7 +157,7 @@ namespace MiniLab.Core.Rhythm
             }
 
             JudgeResult result = Evaluate(nearest.timeSec, inputTimeSec);
-            return new JudgeOutcome(result, nearest, nearestIndex, nearestAbsDeltaMs);
+            return new JudgeOutcome(result, nearest, nearestIndex, LastTapOffsetMs);
         }
 
         public JudgeOutcome EvaluateNearestTapOrAccent(BeatEvent[] events, IReadOnlyCollection<int> consumedIndices, float inputTimeSec)
@@ -123,7 +169,7 @@ namespace MiniLab.Core.Rhythm
                 e => e != null && (e.IsKind(BeatKinds.Tap) || e.IsKind(BeatKinds.Accent)));
         }
 
-        public float MissWindowSec => windows.goodMs / 1000f;
+        public float MissWindowSec => EffectiveGoodMs / 1000f;
 
         public bool IsMissedByTime(BeatEvent beatEvent, float songTimeSec)
         {
@@ -168,6 +214,70 @@ namespace MiniLab.Core.Rhythm
             }
 
             return missed;
+        }
+
+        public EmptyTapDecision ResolveEmptyTapDecision(
+            bool inPunishSection,
+            float inputTimeSec,
+            float? nextHazardHitTimeSec,
+            bool matchedHazard,
+            float beatSec)
+        {
+            if (matchedHazard)
+            {
+                return EmptyTapDecision.Matched;
+            }
+
+            if (!inPunishSection)
+            {
+                return EmptyTapDecision.Ignored;
+            }
+
+            if (!nextHazardHitTimeSec.HasValue)
+            {
+                return EmptyTapDecision.Ignored;
+            }
+
+            float expectedHazardWindowSec = Math.Max(beatSec * 0.35f, 0.20f);
+            float deltaToNext = nextHazardHitTimeSec.Value - inputTimeSec;
+            if (deltaToNext >= 0f && deltaToNext <= expectedHazardWindowSec)
+            {
+                return EmptyTapDecision.Miss;
+            }
+
+            return EmptyTapDecision.Ignored;
+        }
+
+        private float ComputeSignedErrorMs(float noteTimeSec, float inputTimeSec)
+        {
+            return ((inputTimeSec + DeviceOffsetSec - noteTimeSec) * 1000f) - SessionPhaseMs;
+        }
+
+        private void UpdateSessionPhase(float signedErrorMs, JudgeResult result)
+        {
+            if (result == JudgeResult.Miss)
+            {
+                return;
+            }
+
+            float alpha = result == JudgeResult.Perfect ? PerfectPhaseAlpha : GoodPhaseAlpha;
+            float update = alpha * Clamp(signedErrorMs, -PhaseErrorClampMs, PhaseErrorClampMs);
+            SessionPhaseMs = Clamp(SessionPhaseMs + update, SessionPhaseMinMs, SessionPhaseMaxMs);
+        }
+
+        private static float Clamp(float value, float min, float max)
+        {
+            if (value < min)
+            {
+                return min;
+            }
+
+            if (value > max)
+            {
+                return max;
+            }
+
+            return value;
         }
     }
 }

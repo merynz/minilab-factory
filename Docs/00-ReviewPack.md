@@ -39,6 +39,30 @@
 - `Long -> HoldSlide` eventleri deterministic travel + endTime ile spawn ediliyor.
 - Hazard kontrol loop'unda spawn-sira kaynakli erken `break` kaldirildi; hit-time bazli kontrol korunuyor.
 
+## Milestone-2 Geometry Dash Akis Update
+
+- Player mechanic kesinlestirildi: `tap = lane switch` (jump/airborne yok).
+- InputJudge BPM-scale window aktif:
+  - `perfectMs = clamp(0.10 * beatMs, 30, 46)`
+  - `goodMs = clamp(0.22 * beatMs, 68, 98)`
+- PLL-lite run-local offset stabilizasyonu eklendi (sadece Perfect/Good update, Miss ignore).
+- Empty tap kurali eklendi:
+  - Rest/Transition: `ignore`
+  - Active/Drop: yakinda hazard varsa `miss`
+- Pattern generator strain-temelli hale getirildi:
+  - `strain = 0.32*density + 0.24*switchFreq + 0.18*holdLoad + 0.16*offbeatRatio + 0.10*accentDensity`
+  - Section target strain: Rest `0.10-0.20`, Active `0.35-0.60`, Drop `0.65-0.85`
+  - 12 preset ID aktif: `ALT_1212_1BAR`, `ALT_1212_2BAR_ACCENT_END`, `STREAK3_BREAK`, `STREAK2_SYNCOPATED`, `HOLD_SHORT_RELEASE`, `HOLD_LONG_SAFE`, `DOUBLE_SWAP_PAIR`, `CROSS_GATE_BRIDGE`, `BUILD_RAMP_4BAR`, `DROP_DENSE_ACCENTED`, `REST_RESET_2TO4S`, `FAKEOUT_BRIDGE_TO_DROP`
+- Archetype dili aktif (10 adet): `LaneBlock`, `AccentCrusher`, `AlternatorPair`, `StreakBreaker`, `HoldLaneLock`, `HoldReleaseGate`, `CrossGate`, `OffbeatSnap`, `FakeoutGhost`, `RestPulse`.
+- Hold telegraph eklendi (kalan sureyi gosteren bar + release pulse).
+- Hit-time drift assert/log eklendi (`ObstacleSpawner` + `ObstacleKinematics`).
+- Debug overlay genislestirildi (F3 toggle):
+  - DSP-time, beatMs, sessionPhaseMs
+  - signed last tap offset
+  - next 3 hazard preview (time/lane/archetype)
+  - section state + strain/target + preset
+  - empty-tap decision
+
 ## Reproduce Komutlari
 
 ```powershell

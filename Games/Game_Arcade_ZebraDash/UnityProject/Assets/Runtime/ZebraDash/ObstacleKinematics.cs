@@ -18,6 +18,9 @@ namespace ZebraDash
         private float presentationYOffset;
         private float holdWidth;
         private float baseScaleY = 1f;
+        private bool hitLineVerified;
+        private Transform holdTelegraph;
+        private Renderer holdTelegraphRenderer;
         private bool initialized;
 
         public bool IsActiveVisual => initialized;
@@ -53,6 +56,7 @@ namespace ZebraDash
             intensity = Mathf.Clamp01(eventIntensity <= 0f ? 0.6f : eventIntensity);
             wobbleSeed = seed * 0.173f;
             presentationYOffset = ResolvePresentationYOffset(presentation, intensity, seed);
+            hitLineVerified = false;
             initialized = true;
 
             if (IsHold())
@@ -61,12 +65,21 @@ namespace ZebraDash
                 holdWidth = Mathf.Clamp((span / travelTimeSec) * Mathf.Abs(spawnX - hitX), 1.2f, 9f);
                 baseScaleY = 1.05f;
                 transform.localScale = new Vector3(holdWidth, baseScaleY, 1f);
+                EnsureHoldTelegraph();
+                if (holdTelegraph != null)
+                {
+                    holdTelegraph.gameObject.SetActive(true);
+                }
             }
             else if (IsFakeout())
             {
                 holdWidth = 0.95f;
                 baseScaleY = 0.95f;
                 transform.localScale = new Vector3(holdWidth, baseScaleY, 1f);
+                if (holdTelegraph != null)
+                {
+                    holdTelegraph.gameObject.SetActive(false);
+                }
             }
             else
             {
@@ -74,6 +87,10 @@ namespace ZebraDash
                 holdWidth = accentScale;
                 baseScaleY = accentScale;
                 transform.localScale = new Vector3(holdWidth, baseScaleY, 1f);
+                if (holdTelegraph != null)
+                {
+                    holdTelegraph.gameObject.SetActive(false);
+                }
             }
 
             UpdateVisual(hitTimeSec - 0.01f);
@@ -94,6 +111,10 @@ namespace ZebraDash
         public void ResetVisual()
         {
             initialized = false;
+            if (holdTelegraph != null)
+            {
+                holdTelegraph.gameObject.SetActive(false);
+            }
             gameObject.SetActive(false);
         }
 
@@ -108,6 +129,7 @@ namespace ZebraDash
                 y += 0.14f * Mathf.Sin((nowSec * 2.3f) + wobbleSeed);
                 x -= holdWidth * 0.45f;
                 transform.localScale = new Vector3(holdWidth, baseScaleY, 1f);
+                UpdateHoldTelegraph(nowSec);
             }
             else if (IsFakeout())
             {
@@ -122,6 +144,16 @@ namespace ZebraDash
             }
 
             transform.position = new Vector3(x, y, 0f);
+
+            if (!hitLineVerified && nowSec >= hitTimeSec)
+            {
+                hitLineVerified = true;
+                float hitError = Mathf.Abs(transform.position.x - hitX);
+                if (hitError > 0.06f)
+                {
+                    Debug.LogWarning($"[ZebraDash] Hitline drift {hitError:F3} ({kind}/{presentation}) at {hitTimeSec:F3}s");
+                }
+            }
         }
 
         private float ResolvePresentationY(float nowSec, float t)
@@ -160,6 +192,57 @@ namespace ZebraDash
             }
 
             return amp * sign;
+        }
+
+        private void EnsureHoldTelegraph()
+        {
+            if (holdTelegraph != null)
+            {
+                return;
+            }
+
+            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            go.name = "HoldTelegraph";
+            go.transform.SetParent(transform, false);
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localPosition = new Vector3(0f, 0.85f, -0.05f);
+            go.transform.localScale = new Vector3(holdWidth, 0.12f, 1f);
+
+            Collider collider = go.GetComponent<Collider>();
+            if (collider != null)
+            {
+                Destroy(collider);
+            }
+
+            holdTelegraphRenderer = go.GetComponent<Renderer>();
+            if (holdTelegraphRenderer != null)
+            {
+                holdTelegraphRenderer.material = RenderMaterialUtils.CreateSolidMaterial(new Color(1f, 0.92f, 0.35f, 0.92f), true);
+            }
+
+            holdTelegraph = go.transform;
+        }
+
+        private void UpdateHoldTelegraph(float nowSec)
+        {
+            if (holdTelegraph == null)
+            {
+                return;
+            }
+
+            float total = Mathf.Max(0.01f, endTimeSec - hitTimeSec);
+            float remaining01 = Mathf.Clamp01((endTimeSec - nowSec) / total);
+            float width = Mathf.Max(0.08f, holdWidth * remaining01);
+            holdTelegraph.localScale = new Vector3(width, 0.12f, 1f);
+            holdTelegraph.localPosition = new Vector3((-holdWidth * 0.5f) + (width * 0.5f), 0.85f, -0.05f);
+
+            if (holdTelegraphRenderer != null && holdTelegraphRenderer.material != null)
+            {
+                float releasePhase = 1f - remaining01;
+                float pulse = 0.65f + (0.35f * Mathf.Sin((nowSec * 18f) + wobbleSeed));
+                float alpha = Mathf.Lerp(0.55f, 1f, Mathf.Clamp01(releasePhase * pulse));
+                RenderMaterialUtils.ApplyColor(holdTelegraphRenderer.material, new Color(1f, 0.92f, 0.35f, alpha));
+            }
         }
 
         private bool IsHold()

@@ -113,6 +113,19 @@ namespace MiniLab.Core.Rhythm
 
         public double DspNow => AudioSettings.dspTime;
 
+        public double DspElapsedSec
+        {
+            get
+            {
+                if (!IsRunning)
+                {
+                    return 0d;
+                }
+
+                return AudioSettings.dspTime - DspStartTime;
+            }
+        }
+
         public float BeatFloat => SongTimeSec * Bpm / 60f;
 
         public int BeatIndex => Mathf.FloorToInt(BeatFloat);
@@ -120,6 +133,8 @@ namespace MiniLab.Core.Rhythm
         public int BarIndex => Mathf.FloorToInt(BeatFloat / 4f);
 
         public float SecondsPerBeat => 60f / Mathf.Max(1f, Bpm);
+
+        public float BeatMs => SecondsPerBeat * 1000f;
 
         public float BeatToTimeSec(int beatIndex)
         {
