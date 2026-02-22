@@ -2,13 +2,10 @@ param(
     [string]$UnityPath = "",
     [Parameter(Mandatory = $true)][string]$ProjectPath,
     [string]$BuildNumber = "",
-    [string]$OutputName = "",
+    [string]$OutputName = "zebradash-dev.apk",
     [string]$ArtifactDir = "",
-    [string]$PackageName = "",
     [int]$TimeoutMinutes = 20,
-    [switch]$UploadInternal,
-    [switch]$SkipIfUnityMissing,
-    [switch]$AllowNonGameProject
+    [switch]$SkipIfUnityMissing
 )
 
 Set-StrictMode -Version Latest
@@ -24,8 +21,8 @@ function Resolve-UnityPath([string]$ExplicitPath) {
     }
 
     $roots = @(
-        "C:\\Program Files\\Unity\\Hub\\Editor",
-        "C:\\Program Files\\Unity"
+        "C:\Program Files\Unity\Hub\Editor",
+        "C:\Program Files\Unity"
     )
 
     foreach ($root in $roots) {
@@ -45,7 +42,6 @@ function Resolve-CanonicalProjectPath([string]$InputPath, [string]$RepoRoot) {
         $candidate = Join-Path $RepoRoot $candidate
     }
     $candidate = [System.IO.Path]::GetFullPath($candidate)
-
     if (!(Test-Path $candidate)) {
         throw "ProjectPath not found: $InputPath"
     }
@@ -61,46 +57,11 @@ function Resolve-CanonicalProjectPath([string]$InputPath, [string]$RepoRoot) {
     return $resolved
 }
 
-function Get-UnityVersion([string]$UnityExePath) {
-    $editorDir = Split-Path -Parent $UnityExePath
-    $versionDir = Split-Path -Parent $editorDir
-    return Split-Path -Leaf $versionDir
-}
-
-function Get-LogRootCause([string]$LogPath) {
-    if (!(Test-Path $LogPath)) { return "" }
-    $raw = Get-Content -Path $LogPath -Raw
-    $patterns = @(
-        @{ Regex = "(?im)Project has invalid dependencies.*"; Reason = "Project has invalid UPM dependencies (manifest local path may be wrong)." },
-        @{ Regex = "(?im)Unable to add package.*com\.zebratank\.minilab\.core.*"; Reason = "UPM failed to resolve com.zebratank.minilab.core." },
-        @{ Regex = "(?im)store\.yaml bulunamadi|store\.yaml not found"; Reason = "store.yaml missing in project/game path." },
-        @{ Regex = "(?im)application_id_android.*bulunamadi|applicationId.*invalid"; Reason = "Android package name not found/invalid in store.yaml." },
-        @{ Regex = "(?im)keystore.*bulunamadi|keystore.*not found"; Reason = "Custom keystore path is configured but file is missing." },
-        @{ Regex = "(?im)No scene found|No enabled scenes found"; Reason = "Build Settings scene list is empty; bootstrap scene guard is being used or failed." }
-    )
-    foreach ($pattern in $patterns) {
-        if ([regex]::IsMatch($raw, $pattern.Regex)) {
-            return $pattern.Reason
-        }
-    }
-    return ""
-}
-
 function Show-UnityLogDiagnostics([string]$LogPath) {
     Write-Host "Unity log: $LogPath"
     if (!(Test-Path $LogPath)) {
         Write-Host "Unity log not found."
         return
-    }
-
-    $rootCause = Get-LogRootCause $LogPath
-    if (-not [string]::IsNullOrWhiteSpace($rootCause)) {
-        Write-Host "Root cause: $rootCause"
-    }
-
-    $firstException = Select-String -Path $LogPath -Pattern '(?im)\b[A-Za-z0-9_.]*Exception:.*' | Select-Object -First 1
-    if ($firstException) {
-        Write-Host "First exception: $($firstException.Line.Trim())"
     }
 
     Write-Host "----- LOG TAIL (last 200 lines) -----"
@@ -136,7 +97,7 @@ function Invoke-UnityWithTimeout([string]$ExePath, [string[]]$ArgumentList, [int
     if (-not $completed) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
         Show-UnityLogDiagnostics $LogPath
-        throw "Android build timed out after $TimeoutMins minutes."
+        throw "Android APK build timed out after $TimeoutMins minutes."
     }
 
     return $process.ExitCode
@@ -153,58 +114,35 @@ if ([string]::IsNullOrWhiteSpace($resolvedUnityPath)) {
     throw $msg
 }
 
-$unityVersion = Get-UnityVersion $resolvedUnityPath
-Write-Host "Unity detected: $unityVersion ($resolvedUnityPath)"
-
-$androidModulePath = Join-Path (Split-Path -Parent $resolvedUnityPath) "Data/PlaybackEngines/AndroidPlayer"
-if (!(Test-Path $androidModulePath)) {
-    Write-Host "SKIP: Android Build Support module is missing for Unity $unityVersion."
-    Write-Host "Install from Unity Hub -> Installs -> Add modules -> Android Build Support."
-    exit 0
-}
-Write-Host "Android Build Support module: detected"
-
 $resolvedProjectPath = Resolve-CanonicalProjectPath $ProjectPath $repoRoot
 Write-Host "Resolved ProjectPath: $resolvedProjectPath"
 
 $syncScript = Join-Path $PSScriptRoot "sync-zebradash-content.ps1"
 if (Test-Path $syncScript) {
-    Write-Host "Running ZebraDash content sync before AAB build..."
+    Write-Host "Running ZebraDash content sync before APK build..."
     & $syncScript -ProjectPath $resolvedProjectPath
     if ($LASTEXITCODE -ne 0) {
         throw "Content sync failed with exit code $LASTEXITCODE"
     }
 }
 
-if (-not $AllowNonGameProject) {
-    if ($resolvedProjectPath -notmatch '[\\/]Games[\\/]Game_[^\\/]+[\\/]UnityProject$') {
-        throw "AAB build must run on Games/<Game>/UnityProject. Use -AllowNonGameProject to override."
-    }
-}
-
 if ([string]::IsNullOrWhiteSpace($ArtifactDir)) {
-    $ArtifactDir = Join-Path $repoRoot "BuildArtifacts/Android"
+    $ArtifactDir = Join-Path $repoRoot "BuildArtifacts"
 }
 New-Item -ItemType Directory -Path $ArtifactDir -Force | Out-Null
-New-Item -ItemType Directory -Path (Join-Path $repoRoot "BuildArtifacts") -Force | Out-Null
 
-$gameName = Split-Path -Leaf (Split-Path -Parent $resolvedProjectPath)
-if ([string]::IsNullOrWhiteSpace($OutputName)) {
-    $OutputName = "$gameName.aab"
-}
-
-$logFile = Join-Path $repoRoot "BuildArtifacts/unity-android-build.log"
-$outputAabPath = Join-Path $ArtifactDir $OutputName
+$logFile = Join-Path $repoRoot "BuildArtifacts/unity-android-apk-build.log"
+$outputApkPath = Join-Path $ArtifactDir $OutputName
 
 $env:MINILAB_ANDROID_ARTIFACT_DIR = $ArtifactDir
-$env:MINILAB_ANDROID_AAB_NAME = $OutputName
+$env:MINILAB_ANDROID_APK_NAME = $OutputName
 if ($BuildNumber -ne "") {
     $env:MINILAB_ANDROID_BUILD_NUMBER = $BuildNumber
 }
 
 $storeCandidatePaths = @(
     (Join-Path $resolvedProjectPath "store.yaml"),
-    (Join-Path $resolvedProjectPath "..\\store.yaml")
+    (Join-Path $resolvedProjectPath "..\store.yaml")
 )
 $storePath = $storeCandidatePaths |
     ForEach-Object { [System.IO.Path]::GetFullPath($_) } |
@@ -220,7 +158,7 @@ $args = @(
     "-quit",
     "-projectPath", $resolvedProjectPath,
     "-buildTarget", "Android",
-    "-executeMethod", "MiniLab.Build.BuildPipelineEntry.BuildAndroidAab",
+    "-executeMethod", "MiniLab.Build.BuildPipelineEntry.BuildAndroidApk",
     "-stackTraceLogType", "Full",
     "-logFile", $logFile
 )
@@ -228,28 +166,12 @@ $args = @(
 $exitCode = Invoke-UnityWithTimeout $resolvedUnityPath $args $TimeoutMinutes $logFile
 Show-UnityLogDiagnostics $logFile
 if ($exitCode -ne 0) {
-    throw "Android build failed (exit $exitCode). Log: $logFile"
+    throw "Android APK build failed (exit $exitCode). Log: $logFile"
 }
 
-if (!(Test-Path $outputAabPath)) {
-    throw "Android build succeeded but AAB not found: $outputAabPath"
+if (!(Test-Path $outputApkPath)) {
+    throw "Android APK build succeeded but APK not found: $outputApkPath"
 }
 
-Write-Host "Android build completed."
-Write-Host "AAB: $outputAabPath"
-
-if ($UploadInternal) {
-    $gamePath = Split-Path -Parent $resolvedProjectPath
-    if ([string]::IsNullOrWhiteSpace($PackageName)) {
-        & (Join-Path $PSScriptRoot "upload-android-internal.ps1") `
-            -AabPath $outputAabPath `
-            -GamePath $gamePath `
-            -StorePath $storePath `
-            -SkipIfSecretsMissing
-    } else {
-        & (Join-Path $PSScriptRoot "upload-android-internal.ps1") `
-            -AabPath $outputAabPath `
-            -PackageName $PackageName `
-            -SkipIfSecretsMissing
-    }
-}
+Write-Host "Android APK build completed."
+Write-Host "APK: $outputApkPath"

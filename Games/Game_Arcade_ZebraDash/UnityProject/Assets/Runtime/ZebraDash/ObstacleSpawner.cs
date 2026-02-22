@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using MiniLab.Core.Rhythm;
 using UnityEngine;
@@ -9,73 +10,147 @@ namespace ZebraDash
         [SerializeField] private BeatClock beatClock;
         [SerializeField] private PrefabRegistry prefabRegistry;
         [SerializeField] private LevelRunner levelRunner;
-        [SerializeField] private float spawnAheadSeconds = 2.2f;
-        [SerializeField] private float spawnX = 17f;
+        [SerializeField] private float spawnX = 14f;
         [SerializeField] private float laneStep = 1.5f;
+        [SerializeField] private float lookAheadSec = 0.02f;
 
         private BeatMap beatMap;
-        private int tapIndex;
-        private int holdIndex;
-        private int pulseIndex;
-        private readonly List<BreathGapEvent> breathGaps = new List<BreathGapEvent>();
+        private BeatEvent[] canonicalEvents = Array.Empty<BeatEvent>();
+        private SpawnDirective[] spawnDirectives = Array.Empty<SpawnDirective>();
+        private int spawnIndex;
+
+        [Serializable]
+        private struct SpawnDirective
+        {
+            public BeatEvent Event;
+            public float SpawnTimeSec;
+            public int Seed;
+        }
+
+        public BeatEvent[] CanonicalEvents => canonicalEvents;
 
         public void Configure(BeatMap map)
         {
             beatMap = map ?? new BeatMap();
-            tapIndex = 0;
-            holdIndex = 0;
-            pulseIndex = 0;
-            breathGaps.Clear();
-            if (beatMap.breathGaps != null)
+            canonicalEvents = BeatMapEventUtils.GetCanonicalEvents(beatMap);
+            spawnIndex = 0;
+            BuildSpawnDirectives();
+        }
+
+        private void Awake()
+        {
+            if (beatClock == null)
             {
-                breathGaps.AddRange(beatMap.breathGaps);
+                beatClock = GetComponent<BeatClock>();
+            }
+
+            if (levelRunner == null)
+            {
+                levelRunner = GetComponent<LevelRunner>();
             }
         }
 
         private void Update()
         {
-            if (beatMap == null || beatClock == null || !beatClock.IsRunning)
+            if (beatClock == null || levelRunner == null || !beatClock.IsRunning || spawnDirectives.Length == 0)
             {
                 return;
             }
 
             float songTime = beatClock.SongTimeSec;
-            float threshold = songTime + spawnAheadSeconds;
             UpdateSectionState(songTime);
 
-            while (beatMap.visualPulses != null && pulseIndex < beatMap.visualPulses.Length && beatMap.visualPulses[pulseIndex].timeSec <= songTime)
+            while (spawnIndex < spawnDirectives.Length && songTime + lookAheadSec >= spawnDirectives[spawnIndex].SpawnTimeSec)
             {
-                VisualPulseEvent pulse = beatMap.visualPulses[pulseIndex++];
-                if (levelRunner != null)
-                {
-                    levelRunner.TriggerAccentPulse(pulse.strength);
-                }
-            }
-
-            while (beatMap.tapEvents != null && tapIndex < beatMap.tapEvents.Length && beatMap.tapEvents[tapIndex].timeSec <= threshold)
-            {
-                TapObstacleEvent tap = beatMap.tapEvents[tapIndex++];
-                if (IsInsideBreathGap(tap.timeSec))
-                {
-                    continue;
-                }
-
-                SpawnTap(tap);
-            }
-
-            while (beatMap.holdEvents != null && holdIndex < beatMap.holdEvents.Length && beatMap.holdEvents[holdIndex].startSec <= threshold)
-            {
-                HoldObstacleEvent hold = beatMap.holdEvents[holdIndex++];
-                if (IsInsideBreathGap(hold.startSec))
-                {
-                    continue;
-                }
-
-                SpawnHold(hold);
+                SpawnDirective directive = spawnDirectives[spawnIndex++];
+                HandleDirective(directive);
             }
         }
 
-        private void UpdateSectionState(float timeSec)
+        private void BuildSpawnDirectives()
+        {
+            float speed = Mathf.Max(0.1f, levelRunner != null ? levelRunner.ScrollSpeed : 7f);
+            float hitX = levelRunner != null ? levelRunner.HitLineX : -4f;
+            float travelTime = Mathf.Max(0.01f, (spawnX - hitX) / speed);
+
+            var directives = new List<SpawnDirective>(canonicalEvents.Length);
+            for (int i = 0; i < canonicalEvents.Length; i++)
+            {
+                BeatEvent evt = canonicalEvents[i];
+                if (evt == null)
+                {
+                    continue;
+                }
+
+                directives.Add(new SpawnDirective
+                {
+                    Event = evt,
+                    SpawnTimeSec = evt.timeSec - travelTime,
+                    Seed = beatMap.seed + (i * 17)
+                });
+            }
+
+            directives.Sort((a, b) => a.SpawnTimeSec.CompareTo(b.SpawnTimeSec));
+            spawnDirectives = directives.ToArray();
+        }
+
+        private void HandleDirective(SpawnDirective directive)
+        {
+            BeatEvent evt = directive.Event;
+            if (evt == null)
+            {
+                return;
+            }
+
+            if (evt.IsKind("Accent"))
+            {
+                levelRunner.TriggerAccentPulse(Mathf.Clamp01(evt.intensity));
+                return;
+            }
+
+            if (evt.IsKind("Gap"))
+            {
+                return;
+            }
+
+            SpawnObstacle(directive);
+        }
+
+        private void SpawnObstacle(SpawnDirective directive)
+        {
+            BeatEvent evt = directive.Event;
+            string fallbackName = evt.IsKind("Hold") ? "HoldObstacle" : "TapObstacle";
+            GameObject obstacle = CreateObstacle(evt.prefabId, fallbackName);
+
+            float laneY = evt.lane * laneStep;
+            obstacle.transform.position = new Vector3(spawnX, laneY, 0f);
+
+            ObstacleKinematics kinematics = obstacle.GetComponent<ObstacleKinematics>();
+            if (kinematics == null)
+            {
+                kinematics = obstacle.AddComponent<ObstacleKinematics>();
+            }
+
+            float hitX = levelRunner != null ? levelRunner.HitLineX : -4f;
+            float speed = Mathf.Max(0.1f, levelRunner != null ? levelRunner.ScrollSpeed : 7f);
+            float frequency = 3f + (Mathf.Clamp01(evt.intensity) * 4f);
+            float wobbleAmp = evt.IsKind("Hold") ? 0.08f : Mathf.Lerp(0.05f, 0.22f, Mathf.Clamp01(evt.intensity));
+            kinematics.Configure(
+                beatClock,
+                directive.SpawnTimeSec,
+                evt.timeSec,
+                spawnX,
+                hitX,
+                laneY,
+                speed,
+                evt.kind,
+                Mathf.Max(0f, evt.durationSec),
+                wobbleAmp,
+                frequency,
+                directive.Seed);
+        }
+
+        private void UpdateSectionState(float songTime)
         {
             if (levelRunner == null || beatMap?.sections == null)
             {
@@ -86,7 +161,7 @@ namespace ZebraDash
             for (int i = 0; i < beatMap.sections.Length; i++)
             {
                 BeatSection section = beatMap.sections[i];
-                if (timeSec >= section.startSec && timeSec < section.endSec)
+                if (songTime >= section.startSec && songTime < section.endSec)
                 {
                     isRest = section.IsRest;
                     break;
@@ -94,41 +169,6 @@ namespace ZebraDash
             }
 
             levelRunner.SetRestSection(isRest);
-        }
-
-        private bool IsInsideBreathGap(float timeSec)
-        {
-            for (int i = 0; i < breathGaps.Count; i++)
-            {
-                BreathGapEvent gap = breathGaps[i];
-                if (timeSec >= gap.startSec && timeSec <= gap.endSec)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private void SpawnTap(TapObstacleEvent tap)
-        {
-            GameObject obstacle = CreateObstacle(tap.prefabId, "TapObstacle");
-            obstacle.transform.position = new Vector3(spawnX, tap.lane * laneStep, 0f);
-        }
-
-        private void SpawnHold(HoldObstacleEvent hold)
-        {
-            GameObject obstacle = CreateObstacle(hold.prefabId, "HoldObstacle");
-            float yFrom = hold.laneFrom * laneStep;
-            float yTo = hold.laneTo * laneStep;
-            obstacle.transform.position = new Vector3(spawnX, yFrom, 0f);
-            MovingObstacle mover = obstacle.GetComponent<MovingObstacle>();
-            if (mover == null)
-            {
-                mover = obstacle.AddComponent<MovingObstacle>();
-            }
-
-            mover.ConfigureHold(hold.motion, yFrom, yTo, hold.endSec - hold.startSec);
         }
 
         private GameObject CreateObstacle(string prefabId, string fallbackName)

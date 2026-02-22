@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace MiniLab.Core.Rhythm
 {
@@ -6,16 +8,30 @@ namespace MiniLab.Core.Rhythm
     {
         Perfect = 0,
         Good = 1,
-        Ok = 2,
-        Miss = 3
+        Miss = 2
     }
 
     [Serializable]
     public sealed class JudgeWindows
     {
-        public float perfectMs = 45f;
+        public float perfectMs = 35f;
         public float goodMs = 90f;
-        public float okMs = 140f;
+    }
+
+    public readonly struct JudgeOutcome
+    {
+        public JudgeOutcome(JudgeResult result, BeatEvent beatEvent, int eventIndex, float deltaMs)
+        {
+            Result = result;
+            Event = beatEvent;
+            EventIndex = eventIndex;
+            DeltaMs = deltaMs;
+        }
+
+        public JudgeResult Result { get; }
+        public BeatEvent Event { get; }
+        public int EventIndex { get; }
+        public float DeltaMs { get; }
     }
 
     public sealed class InputJudge
@@ -47,12 +63,102 @@ namespace MiniLab.Core.Rhythm
                 return JudgeResult.Good;
             }
 
-            if (deltaMs <= windows.okMs)
+            return JudgeResult.Miss;
+        }
+
+        public JudgeOutcome EvaluateNearest(BeatEvent[] events, IReadOnlyCollection<int> consumedIndices, float inputTimeSec, Func<BeatEvent, bool> filter = null)
+        {
+            if (events == null || events.Length == 0)
             {
-                return JudgeResult.Ok;
+                return new JudgeOutcome(JudgeResult.Miss, null, -1, float.PositiveInfinity);
             }
 
-            return JudgeResult.Miss;
+            int nearestIndex = -1;
+            BeatEvent nearest = null;
+            float nearestAbsDeltaMs = float.PositiveInfinity;
+            float correctedInput = inputTimeSec + DeviceOffsetSec;
+            for (int i = 0; i < events.Length; i++)
+            {
+                if (consumedIndices != null && consumedIndices.Contains(i))
+                {
+                    continue;
+                }
+
+                BeatEvent evt = events[i];
+                if (evt == null)
+                {
+                    continue;
+                }
+
+                if (filter != null && !filter(evt))
+                {
+                    continue;
+                }
+
+                float deltaMs = (correctedInput - evt.timeSec) * 1000f;
+                float absDeltaMs = Math.Abs(deltaMs);
+                if (absDeltaMs < nearestAbsDeltaMs)
+                {
+                    nearestAbsDeltaMs = absDeltaMs;
+                    nearest = evt;
+                    nearestIndex = i;
+                }
+            }
+
+            if (nearest == null)
+            {
+                return new JudgeOutcome(JudgeResult.Miss, null, -1, float.PositiveInfinity);
+            }
+
+            JudgeResult result = Evaluate(nearest.timeSec, inputTimeSec);
+            return new JudgeOutcome(result, nearest, nearestIndex, nearestAbsDeltaMs);
+        }
+
+        public float MissWindowSec => windows.goodMs / 1000f;
+
+        public bool IsMissedByTime(BeatEvent beatEvent, float songTimeSec)
+        {
+            if (beatEvent == null)
+            {
+                return false;
+            }
+
+            return songTimeSec > beatEvent.timeSec + MissWindowSec;
+        }
+
+        public IEnumerable<int> UnconsumedMissedIndices(BeatEvent[] events, IReadOnlyCollection<int> consumedIndices, float songTimeSec, Func<BeatEvent, bool> filter = null)
+        {
+            if (events == null)
+            {
+                return Enumerable.Empty<int>();
+            }
+
+            var missed = new List<int>();
+            for (int i = 0; i < events.Length; i++)
+            {
+                if (consumedIndices != null && consumedIndices.Contains(i))
+                {
+                    continue;
+                }
+
+                BeatEvent evt = events[i];
+                if (evt == null)
+                {
+                    continue;
+                }
+
+                if (filter != null && !filter(evt))
+                {
+                    continue;
+                }
+
+                if (IsMissedByTime(evt, songTimeSec))
+                {
+                    missed.Add(i);
+                }
+            }
+
+            return missed;
         }
     }
 }

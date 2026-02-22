@@ -1,11 +1,8 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.IO;
 using MiniLab.Core.Rhythm;
 using UnityEngine;
-using UnityEngine.Networking;
-using UnityEngine.SceneManagement;
 
 namespace ZebraDash
 {
@@ -18,7 +15,9 @@ namespace ZebraDash
 
         private MusicCatalog catalog;
         private MusicTrackEntry activeTrack;
+        private int activeTrackIndex = -1;
         private BeatMap beatMap;
+        private BeatEvent[] canonicalEvents = Array.Empty<BeatEvent>();
 
         private AudioSource audioSource;
         private BeatClock beatClock;
@@ -29,11 +28,12 @@ namespace ZebraDash
         private PlayerController playerController;
 
         private readonly List<float> syncDeltas = new List<float>(16);
-        private float offsetSlider;
-        private string lastJudgement = "-";
-        private string currentSectionState = "Active";
-        private int combo;
-        private bool audioLoaded;
+        private float offsetSliderSec;
+        private string lastTapJudge = "-";
+        private bool loaded;
+        private bool loadingTrack;
+        private string sectionState = "Unknown";
+        private string statusLine = "";
 
         private void Awake()
         {
@@ -59,100 +59,219 @@ namespace ZebraDash
         private IEnumerator Start()
         {
             Screen.orientation = ScreenOrientation.LandscapeLeft;
-            catalog = ZebraDashCatalogIo.LoadCatalog();
-            activeTrack = catalog.FindTrack(defaultTrackId);
-            if (activeTrack == null && catalog.tracks.Length > 0)
+            statusLine = "music_catalog yukleniyor...";
+            MusicCatalog loadedCatalog = null;
+            string catalogError = "";
+            yield return ZebraDashCatalogIo.LoadCatalogAsync((loaded, error) =>
             {
-                activeTrack = catalog.tracks[0];
+                loadedCatalog = loaded;
+                catalogError = error ?? "";
+            });
+
+            catalog = loadedCatalog ?? new MusicCatalog();
+            if (catalog?.tracks == null || catalog.tracks.Length == 0)
+            {
+                statusLine = "Track yok. tools/analyze-audio.ps1 ve tools/sync-zebradash-content.ps1 calistirin.";
+                yield break;
             }
 
-            if (activeTrack == null)
+            if (!string.IsNullOrWhiteSpace(catalogError))
+            {
+                statusLine = $"Catalog warning: {catalogError}";
+            }
+
+            activeTrackIndex = ResolveTrackIndex(defaultTrackId);
+            yield return LoadTrackAndRun(activeTrackIndex);
+        }
+
+        private int ResolveTrackIndex(string preferredTrackId)
+        {
+            if (catalog?.tracks == null || catalog.tracks.Length == 0)
+            {
+                return -1;
+            }
+
+            if (!string.IsNullOrWhiteSpace(preferredTrackId))
+            {
+                for (int i = 0; i < catalog.tracks.Length; i++)
+                {
+                    if (string.Equals(catalog.tracks[i].trackId, preferredTrackId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return i;
+                    }
+                }
+            }
+
+            return 0;
+        }
+
+        private IEnumerator LoadTrackAndRun(int trackIndex)
+        {
+            if (loadingTrack)
             {
                 yield break;
             }
 
-            beatMap = ZebraDashCatalogIo.LoadBeatMap(activeTrack);
-            offsetSlider = activeTrack.offsetSec;
+            if (catalog?.tracks == null || catalog.tracks.Length == 0)
+            {
+                yield break;
+            }
+
+            loadingTrack = true;
+            loaded = false;
+            statusLine = "Track yukleniyor...";
+
+            activeTrackIndex = Mathf.Clamp(trackIndex, 0, catalog.tracks.Length - 1);
+            activeTrack = catalog.tracks[activeTrackIndex];
+            BeatMap loadedMap = null;
+            string mapError = "";
+            yield return ZebraDashCatalogIo.LoadBeatMapAsync(activeTrack, (map, error) =>
+            {
+                loadedMap = map;
+                mapError = error ?? "";
+            });
+
+            beatMap = loadedMap ?? new BeatMap
+            {
+                trackId = activeTrack.trackId,
+                bpm = activeTrack.bpm,
+                offsetSec = activeTrack.offsetSec
+            };
+            canonicalEvents = BeatMapEventUtils.GetCanonicalEvents(beatMap);
+
+            offsetSliderSec = BeatClock.LoadTrackOffsetSec(activeTrack.trackId, activeTrack.offsetSec);
+            beatMap.offsetSec = offsetSliderSec;
 
             yield return LoadAudioOrMetronome();
+            if (!string.IsNullOrWhiteSpace(mapError))
+            {
+                statusLine = $"Beatmap warning: {mapError}";
+            }
 
             if (previewRunEnabled)
             {
                 SetupPreviewRun();
             }
 
-            beatClock.StartClock(audioSource, beatMap.bpm, activeTrack.offsetSec);
-            audioLoaded = true;
+            StartPlayableLoop();
+            statusLine = "Hazir";
+            loaded = true;
+            loadingTrack = false;
         }
 
         private IEnumerator LoadAudioOrMetronome()
         {
-            string absoluteAudioPath = ZebraDashPaths.ResolvePath(activeTrack.filePath);
-            if (!string.IsNullOrWhiteSpace(absoluteAudioPath) && File.Exists(absoluteAudioPath))
+            audioSource.Stop();
+            audioSource.clip = null;
+
+            AudioClip loadedClip = null;
+            string audioError = "";
+            yield return ZebraDashCatalogIo.LoadAudioClipAsync(activeTrack, (clip, error) =>
             {
-                string fileUrl = "file:///" + absoluteAudioPath.Replace("\\", "/");
-                using UnityWebRequest request = UnityWebRequestMultimedia.GetAudioClip(fileUrl, AudioType.WAV);
-                yield return request.SendWebRequest();
-                if (request.result == UnityWebRequest.Result.Success)
-                {
-                    audioSource.clip = DownloadHandlerAudioClip.GetContent(request);
-                    yield break;
-                }
+                loadedClip = clip;
+                audioError = error ?? "";
+            });
+
+            if (loadedClip != null)
+            {
+                audioSource.clip = loadedClip;
+                audioSource.loop = false;
+                yield break;
             }
 
             audioSource.clip = MetronomeClipFactory.Create(beatMap.bpm, 16);
             audioSource.loop = true;
+            statusLine = string.IsNullOrWhiteSpace(audioError)
+                ? "Audio yok -> metronom fallback."
+                : $"Audio yok -> metronom fallback. ({audioError})";
         }
 
         private void SetupPreviewRun()
         {
-            GameObject worldRoot = new GameObject("WorldRoot");
-            GameObject player = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            player.name = "Player";
-            player.transform.position = new Vector3(-4f, 0f, 0f);
+            GameObject worldRoot = GameObject.Find("WorldRoot");
+            if (worldRoot == null)
+            {
+                worldRoot = new GameObject("WorldRoot");
+            }
 
-            levelRunner = gameObject.AddComponent<LevelRunner>();
-            SetPrivateField(levelRunner, "targetCamera", sceneCamera);
-            SetPrivateField(levelRunner, "playerTransform", player.transform);
-            SetPrivateField(levelRunner, "worldRoot", worldRoot.transform);
+            GameObject player = GameObject.Find("Player");
+            if (player == null)
+            {
+                player = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                player.name = "Player";
+                player.transform.position = new Vector3(-4f, 0f, 0f);
+            }
 
-            playerController = player.AddComponent<PlayerController>();
+            levelRunner = GetComponent<LevelRunner>();
+            if (levelRunner == null)
+            {
+                levelRunner = gameObject.AddComponent<LevelRunner>();
+            }
 
-            obstacleSpawner = gameObject.AddComponent<ObstacleSpawner>();
-            SetPrivateField(obstacleSpawner, "beatClock", beatClock);
-            SetPrivateField(obstacleSpawner, "levelRunner", levelRunner);
-            obstacleSpawner.Configure(beatMap);
+            obstacleSpawner = GetComponent<ObstacleSpawner>();
+            if (obstacleSpawner == null)
+            {
+                obstacleSpawner = gameObject.AddComponent<ObstacleSpawner>();
+            }
+
+            playerController = player.GetComponent<PlayerController>();
+            if (playerController == null)
+            {
+                playerController = player.AddComponent<PlayerController>();
+            }
+
+            levelRunner.ConfigureScene(sceneCamera, player.transform, worldRoot.transform);
+            levelRunner.ConfigureDependencies(beatClock, audioSource, obstacleSpawner, playerController);
         }
 
-        private static void SetPrivateField<T>(object instance, string fieldName, T value)
+        private void StartPlayableLoop()
         {
-            var field = instance.GetType().GetField(fieldName, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            field?.SetValue(instance, value);
-        }
-
-        private void Update()
-        {
-            if (!audioLoaded || beatMap == null)
+            if (levelRunner == null)
             {
                 return;
             }
 
-            if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0))
+            beatClock.UpdateOffset(offsetSliderSec);
+            levelRunner.StartRun(beatMap, activeTrack, offsetSliderSec);
+        }
+
+        private void Update()
+        {
+            if (!loaded || beatMap == null || levelRunner == null)
+            {
+                return;
+            }
+
+            if (Input.GetKeyDown(KeyCode.T))
             {
                 RegisterSyncTap();
             }
 
-            currentSectionState = ResolveSectionState(beatClock.SongTimeSec);
+            if (levelRunner.ConsumeRestartRequest())
+            {
+                StartPlayableLoop();
+            }
+
+            if (levelRunner.State == RunState.Completed && Input.GetKeyDown(KeyCode.N))
+            {
+                StartCoroutine(LoadTrackAndRun((activeTrackIndex + 1) % catalog.tracks.Length));
+            }
+
+            sectionState = ResolveSectionState(levelRunner.SongTimeSec);
         }
 
         private void RegisterSyncTap()
         {
-            float songTime = beatClock.SongTimeSec;
-            float spb = 60f / Mathf.Max(1f, beatMap.bpm);
-            int nearestBeat = Mathf.RoundToInt(songTime / spb);
-            float nearestBeatTime = nearestBeat * spb;
-            float delta = songTime - nearestBeatTime;
+            if (!beatClock.IsRunning)
+            {
+                return;
+            }
 
+            float songTime = beatClock.SongTimeSec;
+            float secondsPerBeat = beatClock.SecondsPerBeat;
+            int nearestBeat = Mathf.RoundToInt(songTime / Mathf.Max(0.0001f, secondsPerBeat));
+            float nearestBeatTime = nearestBeat * secondsPerBeat;
+            float delta = songTime - nearestBeatTime;
             syncDeltas.Add(delta);
             if (syncDeltas.Count > 16)
             {
@@ -160,26 +279,7 @@ namespace ZebraDash
             }
 
             JudgeResult judge = inputJudge.Evaluate(nearestBeatTime, songTime);
-            lastJudgement = judge.ToString();
-            combo = judge == JudgeResult.Miss ? 0 : combo + 1;
-        }
-
-        private void SaveOffset()
-        {
-            if (activeTrack == null)
-            {
-                return;
-            }
-
-            activeTrack.offsetSec = offsetSlider;
-            if (beatMap != null)
-            {
-                beatMap.offsetSec = offsetSlider;
-                string levelPath = ZebraDashPaths.ResolvePath(activeTrack.levelPath);
-                BeatMapJson.SaveToFile(levelPath, beatMap);
-            }
-
-            ZebraDashCatalogIo.SaveCatalog(catalog);
+            lastTapJudge = judge.ToString();
         }
 
         private void ApplyTapSyncOffset()
@@ -196,38 +296,134 @@ namespace ZebraDash
             }
 
             float avgDelta = sum / syncDeltas.Count;
-            offsetSlider -= avgDelta;
+            offsetSliderSec -= avgDelta;
             syncDeltas.Clear();
+            beatClock.UpdateOffset(offsetSliderSec);
+            SaveOffset();
+            statusLine = $"Tap sync uygulandi: {offsetSliderSec * 1000f:F1} ms";
+        }
+
+        private void SaveOffset()
+        {
+            if (activeTrack == null)
+            {
+                return;
+            }
+
+            activeTrack.offsetSec = offsetSliderSec;
+            beatMap.offsetSec = offsetSliderSec;
+            BeatClock.SaveTrackOffsetSec(activeTrack.trackId, offsetSliderSec);
+            beatClock.UpdateOffset(offsetSliderSec);
+
+            if (!Application.isEditor)
+            {
+                statusLine = "Offset cihazda lokal kaydedildi (PlayerPrefs).";
+                return;
+            }
+
+            ZebraDashCatalogIo.SaveCatalog(catalog);
+
+            string levelPath = ZebraDashPaths.ResolveLevelPathForRead(activeTrack.levelPath);
+            if (!string.IsNullOrWhiteSpace(levelPath) && System.IO.File.Exists(levelPath))
+            {
+                BeatMapJson.SaveToFile(levelPath, beatMap);
+            }
+        }
+
+        private string ResolveSectionState(float timeSec)
+        {
+            if (beatMap?.sections == null || beatMap.sections.Length == 0)
+            {
+                return "Unknown";
+            }
+
+            for (int i = 0; i < beatMap.sections.Length; i++)
+            {
+                BeatSection section = beatMap.sections[i];
+                if (timeSec >= section.startSec && timeSec < section.endSec)
+                {
+                    return section.IsRest ? "Rest" : "Active";
+                }
+            }
+
+            return "Active";
         }
 
         private void OnGUI()
         {
-            GUI.Box(new Rect(10, 10, 520, 210), "Beatmap Workbench");
-            if (activeTrack == null || beatMap == null)
+            GUI.Box(new Rect(10, 10, 760, 300), "ZebraDash Beatmap Workbench");
+            if (activeTrack == null || beatMap == null || levelRunner == null)
             {
-                GUI.Label(new Rect(20, 40, 400, 20), "Track yok. analyze-audio ile catalog uretin.");
+                GUI.Label(new Rect(20, 40, 730, 20), "Track yok. tools/analyze-audio.ps1 ve tools/sync-zebradash-content.ps1 calistirin.");
+                if (!string.IsNullOrWhiteSpace(statusLine))
+                {
+                    GUI.Label(new Rect(20, 60, 730, 20), statusLine);
+                }
                 return;
             }
 
-            GUI.Label(new Rect(20, 40, 490, 20), $"Track: {activeTrack.trackId}");
-            GUI.Label(new Rect(20, 60, 490, 20), $"BPM: {beatMap.bpm:F2}  Offset: {offsetSlider:F3}s");
-            GUI.Label(new Rect(20, 80, 490, 20), $"Time: {beatClock.SongTimeSec:F2}s Beat: {beatClock.BeatFloat:F2} Bar: {beatClock.BarIndex + 1}");
-            GUI.Label(new Rect(20, 100, 490, 20), $"Section: {currentSectionState}  Last Judge: {lastJudgement}  Combo: {combo}");
-            GUI.Label(new Rect(20, 118, 490, 20), $"Offset(ms): {offsetSlider * 1000f:F1}");
+            GUI.Label(new Rect(20, 40, 730, 20), $"Track: {activeTrack.trackId} | State: {levelRunner.State} | Section: {sectionState}");
+            GUI.Label(new Rect(20, 60, 730, 20), $"BPM: {beatMap.bpm:F2} | Combo: {levelRunner.Combo} | MaxCombo: {levelRunner.MaxCombo} | Score: {levelRunner.Score}");
+            GUI.Label(new Rect(20, 80, 730, 20), $"dspNow: {beatClock.DspNow:F3} | dspStart: {beatClock.DspStartTime:F3}");
+            GUI.Label(new Rect(20, 100, 730, 20), $"songTime: {levelRunner.SongTimeSec:F3}s | offsetMs: {offsetSliderSec * 1000f:F1} | nextBeatDelta: {beatClock.NextBeatDeltaSec:F3}s");
+            GUI.Label(new Rect(20, 120, 730, 20), $"LastJudge: {levelRunner.LastJudge} | TapJudge: {lastTapJudge} | SyncSamples: {syncDeltas.Count}/16 | {statusLine}");
 
-            GUI.Label(new Rect(20, 138, 90, 20), "Offset");
-            offsetSlider = GUI.HorizontalSlider(new Rect(72, 144, 210, 16), offsetSlider, -0.5f, 0.5f);
-            if (GUI.Button(new Rect(290, 138, 90, 24), "Tap->Sync"))
+            if (levelRunner.State == RunState.Countdown)
+            {
+                GUI.Label(new Rect(20, 140, 300, 20), $"Countdown: {levelRunner.CountdownRemaining:F2}s");
+            }
+            else if (levelRunner.State == RunState.Failed)
+            {
+                GUI.Label(new Rect(20, 140, 500, 20), $"Fail: {levelRunner.FailReason} (R/tap restart)");
+            }
+            else if (levelRunner.State == RunState.Completed)
+            {
+                GUI.Label(new Rect(20, 140, 500, 20), "Completed: N=next, R/tap=restart");
+            }
+
+            GUI.Label(new Rect(20, 166, 90, 20), "Offset");
+            float oldOffset = offsetSliderSec;
+            offsetSliderSec = GUI.HorizontalSlider(new Rect(72, 172, 220, 16), offsetSliderSec, -0.5f, 0.5f);
+            if (Mathf.Abs(oldOffset - offsetSliderSec) > 0.0001f)
+            {
+                beatClock.UpdateOffset(offsetSliderSec);
+            }
+
+            if (GUI.Button(new Rect(300, 166, 95, 24), "Tap->Sync"))
+            {
+                RegisterSyncTap();
+                if (syncDeltas.Count >= 16)
+                {
+                    ApplyTapSyncOffset();
+                }
+            }
+
+            if (GUI.Button(new Rect(402, 166, 95, 24), "Apply Sync"))
             {
                 ApplyTapSyncOffset();
             }
 
-            if (GUI.Button(new Rect(390, 138, 120, 24), "Save Catalog"))
+            if (GUI.Button(new Rect(504, 166, 95, 24), "Save Offset"))
             {
                 SaveOffset();
             }
 
-            Rect timeline = new Rect(20, 158, 490, 42);
+            if (GUI.Button(new Rect(606, 166, 70, 24), "Restart"))
+            {
+                StartPlayableLoop();
+            }
+
+            if (GUI.Button(new Rect(682, 166, 70, 24), "Next"))
+            {
+                StartCoroutine(LoadTrackAndRun((activeTrackIndex + 1) % catalog.tracks.Length));
+            }
+
+            if (GUI.Button(new Rect(682, 140, 70, 22), "Exit"))
+            {
+                ExitApp();
+            }
+
+            Rect timeline = new Rect(20, 202, 730, 90);
             GUI.Box(timeline, GUIContent.none);
             DrawTimeline(timeline);
         }
@@ -244,71 +440,51 @@ namespace ZebraDash
                     BeatSection section = beatMap.sections[i];
                     float x0 = rect.x + Mathf.Clamp01(section.startSec / duration) * rect.width;
                     float x1 = rect.x + Mathf.Clamp01(section.endSec / duration) * rect.width;
-                    Color c = section.IsRest ? new Color(0.25f, 0.45f, 0.75f, 0.8f) : new Color(0.75f, 0.35f, 0.2f, 0.85f);
+                    Color c = section.IsRest ? new Color(0.22f, 0.42f, 0.72f, 0.75f) : new Color(0.78f, 0.34f, 0.22f, 0.75f);
                     DrawSolidRect(new Rect(x0, rect.y + 2, Mathf.Max(1f, x1 - x0), rect.height - 4), c);
                 }
             }
 
-            if (beatMap.tapEvents != null)
+            for (int i = 0; i < canonicalEvents.Length; i++)
             {
-                for (int i = 0; i < beatMap.tapEvents.Length; i++)
+                BeatEvent evt = canonicalEvents[i];
+                if (evt == null)
                 {
-                    float x = rect.x + Mathf.Clamp01(beatMap.tapEvents[i].timeSec / duration) * rect.width;
-                    DrawSolidRect(new Rect(x, rect.y + 2, 1f, rect.height - 4), Color.cyan);
+                    continue;
+                }
+
+                float x = rect.x + Mathf.Clamp01(evt.timeSec / duration) * rect.width;
+                if (evt.IsKind("Tap"))
+                {
+                    DrawSolidRect(new Rect(x, rect.y + 4, 2f, rect.height - 8), Color.cyan);
+                }
+                else if (evt.IsKind("Hold"))
+                {
+                    float xEnd = rect.x + Mathf.Clamp01((evt.timeSec + evt.durationSec) / duration) * rect.width;
+                    DrawSolidRect(new Rect(x, rect.y + 20, Mathf.Max(2f, xEnd - x), rect.height - 40), Color.yellow);
+                }
+                else if (evt.IsKind("Accent"))
+                {
+                    DrawSolidRect(new Rect(x, rect.y + 4, 1f, rect.height - 8), new Color(1f, 0.8f, 0.25f));
                 }
             }
 
-            if (beatMap.holdEvents != null)
-            {
-                for (int i = 0; i < beatMap.holdEvents.Length; i++)
-                {
-                    HoldObstacleEvent hold = beatMap.holdEvents[i];
-                    float x0 = rect.x + Mathf.Clamp01(hold.startSec / duration) * rect.width;
-                    float x1 = rect.x + Mathf.Clamp01(hold.endSec / duration) * rect.width;
-                    DrawSolidRect(new Rect(x0, rect.y + 10, Mathf.Max(2f, x1 - x0), rect.height - 20), Color.yellow);
-                }
-            }
-
-            float playheadX = rect.x + Mathf.Clamp01(beatClock.SongTimeSec / duration) * rect.width;
+            float playheadX = rect.x + Mathf.Clamp01(levelRunner.SongTimeSec / duration) * rect.width;
             DrawSolidRect(new Rect(playheadX, rect.y, 2f, rect.height), Color.white);
         }
 
         private void DrawBeatGrid(Rect rect, float duration)
         {
-            if (beatMap == null || beatMap.bpm <= 0.01f)
-            {
-                return;
-            }
-
-            float spb = 60f / beatMap.bpm;
-            int beats = Mathf.Clamp(Mathf.CeilToInt(duration / spb), 0, 1024);
+            float spb = 60f / Mathf.Max(1f, beatMap.bpm);
+            int beats = Mathf.Clamp(Mathf.CeilToInt(duration / spb), 0, 2048);
             for (int beat = 0; beat <= beats; beat++)
             {
                 float t = beat * spb;
                 float x = rect.x + Mathf.Clamp01(t / duration) * rect.width;
-                bool isBar = (beat % 4) == 0;
-                Color c = isBar ? new Color(1f, 1f, 1f, 0.25f) : new Color(1f, 1f, 1f, 0.1f);
+                bool isBar = beat % 4 == 0;
+                Color c = isBar ? new Color(1f, 1f, 1f, 0.23f) : new Color(1f, 1f, 1f, 0.08f);
                 DrawSolidRect(new Rect(x, rect.y + 1, 1f, rect.height - 2), c);
             }
-        }
-
-        private string ResolveSectionState(float timeSec)
-        {
-            if (beatMap?.sections == null || beatMap.sections.Length == 0)
-            {
-                return "Unknown";
-            }
-
-            for (int i = 0; i < beatMap.sections.Length; i++)
-            {
-                BeatSection section = beatMap.sections[i];
-                if (timeSec >= section.startSec && timeSec < section.endSec)
-                {
-                    return string.IsNullOrWhiteSpace(section.type) ? "Active" : section.type;
-                }
-            }
-
-            return "Active";
         }
 
         private static Texture2D solidTexture;
@@ -324,6 +500,15 @@ namespace ZebraDash
             GUI.color = color;
             GUI.DrawTexture(rect, solidTexture);
             GUI.color = old;
+        }
+
+        private static void ExitApp()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
     }
 }
