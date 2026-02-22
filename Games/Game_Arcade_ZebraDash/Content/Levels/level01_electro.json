@@ -8,157 +8,2241 @@
     {
       "type": "Rest",
       "startSec": 0.4528,
-      "endSec": 6.0256
+      "endSec": 6.0256,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 6.0256,
-      "endSec": 7.8831
+      "endSec": 7.8831,
+      "density": 0.313,
+      "intensity": 0.825
     },
     {
       "type": "Rest",
       "startSec": 7.8831,
-      "endSec": 11.5983
+      "endSec": 11.5983,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 11.5983,
-      "endSec": 20.8862
+      "endSec": 20.8862,
+      "density": 0.656,
+      "intensity": 0.912
     },
     {
       "type": "Rest",
       "startSec": 20.8862,
-      "endSec": 22.7438
+      "endSec": 22.7438,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 22.7438,
-      "endSec": 28.3166
+      "endSec": 28.3166,
+      "density": 0.781,
+      "intensity": 0.897
     },
     {
       "type": "Rest",
       "startSec": 28.3166,
-      "endSec": 32.0317
+      "endSec": 32.0317,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 32.0317,
-      "endSec": 35.7469
+      "endSec": 35.7469,
+      "density": 0.703,
+      "intensity": 0.828
     },
     {
       "type": "Rest",
       "startSec": 35.7469,
-      "endSec": 37.6045
+      "endSec": 37.6045,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 37.6045,
-      "endSec": 41.3197
+      "endSec": 41.3197,
+      "density": 0.625,
+      "intensity": 0.825
     },
     {
       "type": "Rest",
       "startSec": 41.3197,
-      "endSec": 43.1773
+      "endSec": 43.1773,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 43.1773,
-      "endSec": 45.0348
+      "endSec": 45.0348,
+      "density": 0.938,
+      "intensity": 0.667
     },
     {
       "type": "Rest",
       "startSec": 45.0348,
-      "endSec": 46.8924
+      "endSec": 46.8924,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 46.8924,
-      "endSec": 58.0379
+      "endSec": 58.0379,
+      "density": 0.833,
+      "intensity": 0.981
     },
     {
       "type": "Rest",
       "startSec": 58.0379,
-      "endSec": 65.4683
+      "endSec": 65.4683,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 65.4683,
-      "endSec": 67.3259
+      "endSec": 67.3259,
+      "density": 0.469,
+      "intensity": 0.833
     },
     {
       "type": "Rest",
       "startSec": 67.3259,
-      "endSec": 69.1835
+      "endSec": 69.1835,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 69.1835,
-      "endSec": 72.8986
+      "endSec": 72.8986,
+      "density": 0.703,
+      "intensity": 0.828
     },
     {
       "type": "Rest",
       "startSec": 72.8986,
-      "endSec": 74.7562
+      "endSec": 74.7562,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 74.7562,
-      "endSec": 80.329
+      "endSec": 80.329,
+      "density": 0.729,
+      "intensity": 0.825
     },
     {
       "type": "Rest",
       "startSec": 80.329,
-      "endSec": 82.1865
+      "endSec": 82.1865,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 82.1865,
-      "endSec": 85.9017
+      "endSec": 85.9017,
+      "density": 0.625,
+      "intensity": 0.825
     },
     {
       "type": "Rest",
       "startSec": 85.9017,
-      "endSec": 89.6169
+      "endSec": 89.6169,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 89.6169,
-      "endSec": 95.1896
+      "endSec": 95.1896,
+      "density": 0.729,
+      "intensity": 0.757
     },
     {
       "type": "Rest",
       "startSec": 95.1896,
-      "endSec": 97.0472
+      "endSec": 97.0472,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 97.0472,
-      "endSec": 100.7624
+      "endSec": 100.7624,
+      "density": 0.703,
+      "intensity": 0.828
     },
     {
       "type": "Rest",
       "startSec": 100.7624,
-      "endSec": 102.62
+      "endSec": 102.62,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 102.62,
-      "endSec": 108.1927
+      "endSec": 108.1927,
+      "density": 0.677,
+      "intensity": 0.831
     },
     {
       "type": "Rest",
       "startSec": 108.1927,
-      "endSec": 110.0503
+      "endSec": 110.0503,
+      "density": 0.0,
+      "intensity": 0.05
     },
     {
       "type": "Active",
       "startSec": 110.0503,
-      "endSec": 115.6231
+      "endSec": 115.6231,
+      "density": 0.781,
+      "intensity": 0.903
     },
     {
       "type": "Rest",
       "startSec": 115.6231,
-      "endSec": 118.1539
+      "endSec": 118.1539,
+      "density": 0.0,
+      "intensity": 0.05
+    }
+  ],
+  "events": [
+    {
+      "timeSec": 0.4528,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 2.3104,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 4.168,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 6.0256,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 6.0256,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 7.8831,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 9.7407,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 11.5983,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 11.5983,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 12.2949,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.55,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 12.8754,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 12.8754,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 13.4559,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 13.4559,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 15.3135,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 15.3135,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 17.1711,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 17.1711,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 17.6355,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 17.6355,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 18.0999,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 18.0999,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 19.0287,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 19.0287,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 19.493,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 19.493,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 19.9574,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 19.9574,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 20.8862,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 22.7438,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 22.7438,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 24.6014,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 24.6014,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 24.8336,
+      "lane": 2,
+      "kind": "Hold",
+      "durationSec": 2.0343,
+      "intensity": 0.85,
+      "prefabId": "hold_basic",
+      "laneTo": 2,
+      "motion": "Drop"
+    },
+    {
+      "timeSec": 25.298,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 25.298,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 25.7624,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 25.7624,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 26.459,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 26.459,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 26.9234,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 26.9234,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 27.3878,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 27.3878,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 28.3166,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 30.1742,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8575,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 32.0317,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 32.0317,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 32.2639,
+      "lane": 2,
+      "kind": "Hold",
+      "durationSec": 2.0458,
+      "intensity": 0.85,
+      "prefabId": "hold_basic",
+      "laneTo": 2,
+      "motion": "Drop"
+    },
+    {
+      "timeSec": 32.4961,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 32.4961,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 32.9605,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 32.9605,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 33.8893,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 33.8893,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 35.7469,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 37.6045,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 37.6045,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 39.4621,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 39.4621,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 39.9265,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 39.9265,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 40.3909,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 40.3909,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 41.3197,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 43.1773,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 43.1773,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 43.4095,
+      "lane": 0,
+      "kind": "Hold",
+      "durationSec": 2.9352,
+      "intensity": 0.85,
+      "prefabId": "hold_basic",
+      "laneTo": 0,
+      "motion": "Drop"
+    },
+    {
+      "timeSec": 43.8739,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.55,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 44.4543,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 44.4543,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 45.0348,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 46.8924,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 46.8924,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 47.1246,
+      "lane": 0,
+      "kind": "Hold",
+      "durationSec": 2.9903,
+      "intensity": 0.85,
+      "prefabId": "hold_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 47.3568,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 47.3568,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 47.8212,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 47.8212,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 48.75,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 48.75,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 48.9822,
+      "lane": 0,
+      "kind": "Hold",
+      "durationSec": 0.8636,
+      "intensity": 0.85,
+      "prefabId": "hold_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 49.2144,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 49.2144,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 49.6788,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 49.6788,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 50.6076,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 50.6076,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 50.8398,
+      "lane": 0,
+      "kind": "Hold",
+      "durationSec": 2.5924,
+      "intensity": 0.85,
+      "prefabId": "hold_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 52.4652,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 52.4652,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 54.3228,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 54.3228,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 54.555,
+      "lane": 0,
+      "kind": "Hold",
+      "durationSec": 1.7377,
+      "intensity": 0.85,
+      "prefabId": "hold_basic",
+      "laneTo": 0,
+      "motion": "Drop"
+    },
+    {
+      "timeSec": 54.7872,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 54.7872,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 55.2516,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 55.2516,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 56.1804,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 56.1804,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 56.6448,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 56.6448,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 57.1091,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 57.1091,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 58.0379,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 59.8955,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 61.7531,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 63.6107,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 65.4683,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 65.4683,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 65.7005,
+      "lane": 0,
+      "kind": "Hold",
+      "durationSec": 1.1904,
+      "intensity": 0.85,
+      "prefabId": "hold_basic",
+      "laneTo": 2,
+      "motion": "Oscillate"
+    },
+    {
+      "timeSec": 67.3259,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 69.1835,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 69.1835,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 71.041,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 71.041,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 71.2732,
+      "lane": 1,
+      "kind": "Hold",
+      "durationSec": 1.4433,
+      "intensity": 0.85,
+      "prefabId": "hold_basic",
+      "laneTo": 1,
+      "motion": "Drop"
+    },
+    {
+      "timeSec": 71.7376,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 71.7376,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 72.202,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 72.202,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 72.8986,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 74.7562,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 74.7562,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 76.6138,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 76.6138,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 77.0782,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 77.0782,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 77.5426,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 77.5426,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 78.4714,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 78.4714,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 78.9358,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 78.9358,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 79.4002,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 79.4002,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 80.329,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8575,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 82.1865,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 82.1865,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 84.0441,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 84.0441,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 84.7407,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 84.7407,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 85.2051,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 85.2051,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 85.9017,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 87.7593,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 89.6169,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 89.6169,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 91.4745,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 91.4745,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 91.7067,
+      "lane": 2,
+      "kind": "Hold",
+      "durationSec": 1.9475,
+      "intensity": 0.85,
+      "prefabId": "hold_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 91.9389,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 91.9389,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 92.4033,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 92.4033,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 93.3321,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 93.3321,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 94.0287,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.55,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 94.6091,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 94.6091,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 95.1896,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 97.0472,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 97.0472,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 97.2794,
+      "lane": 0,
+      "kind": "Hold",
+      "durationSec": 1.8369,
+      "intensity": 0.85,
+      "prefabId": "hold_basic",
+      "laneTo": 0,
+      "motion": "Drop"
+    },
+    {
+      "timeSec": 97.5116,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 97.5116,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 97.976,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 97.976,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 98.9048,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 98.9048,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 100.7624,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 102.62,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 102.62,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 103.0844,
+      "lane": 2,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 103.0844,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 103.5488,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 103.5488,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 104.4776,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 104.4776,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 106.3352,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 106.3352,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 107.0317,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.55,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 107.6122,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 107.6122,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 108.1927,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 110.0503,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 110.0503,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 110.2825,
+      "lane": 0,
+      "kind": "Hold",
+      "durationSec": 2.9843,
+      "intensity": 0.85,
+      "prefabId": "hold_basic",
+      "laneTo": 0,
+      "motion": "Drop"
+    },
+    {
+      "timeSec": 110.7469,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 110.7469,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 111.2113,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 111.2113,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 111.9079,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 111.9079,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 113.7655,
+      "lane": 0,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 113.7655,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 113.9977,
+      "lane": 1,
+      "kind": "Hold",
+      "durationSec": 0.9086,
+      "intensity": 0.85,
+      "prefabId": "hold_basic",
+      "laneTo": 2,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 114.4621,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.55,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 115.0426,
+      "lane": 1,
+      "kind": "Tap",
+      "durationSec": 0.0,
+      "intensity": 1.0,
+      "prefabId": "tap_basic",
+      "laneTo": 1,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 115.0426,
+      "lane": 0,
+      "kind": "Accent",
+      "durationSec": 0.0,
+      "intensity": 0.65,
+      "prefabId": "accent_pulse",
+      "laneTo": 0,
+      "motion": "Slide"
+    },
+    {
+      "timeSec": 115.6231,
+      "lane": 0,
+      "kind": "Gap",
+      "durationSec": 1.8576,
+      "intensity": 0.0,
+      "prefabId": "gap",
+      "laneTo": 0,
+      "motion": "Slide"
     }
   ],
   "tapEvents": [

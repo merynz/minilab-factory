@@ -364,6 +364,8 @@ function Build-SectionsAndEvents(
                         type = $lastType
                         startSec = [Math]::Round($sectionStart, 4)
                         endSec = [Math]::Round($barStart, 4)
+                        density = 0.0
+                        intensity = 0.0
                     })
             }
 
@@ -460,12 +462,83 @@ function Build-SectionsAndEvents(
                 type = $lastType
                 startSec = [Math]::Round($sectionStart, 4)
                 endSec = [Math]::Round($DurationSec, 4)
+                density = 0.0
+                intensity = 0.0
             })
     }
 
     $tapEventsSorted = $tapEvents | Sort-Object timeSec
     $holdEventsSorted = $holdEvents | Sort-Object startSec
     $pulsesSorted = $pulses | Sort-Object timeSec
+
+    $events = New-Object System.Collections.Generic.List[object]
+    foreach ($tap in $tapEventsSorted) {
+        $events.Add([pscustomobject]@{
+                timeSec = [Math]::Round($tap.timeSec, 4)
+                lane = [int]$tap.lane
+                kind = "Tap"
+                durationSec = 0.0
+                intensity = if ($tap.intensityTag -eq "high") { 1.0 } else { 0.65 }
+                prefabId = $tap.prefabId
+                laneTo = [int]$tap.lane
+                motion = "Slide"
+            })
+    }
+
+    foreach ($hold in $holdEventsSorted) {
+        $events.Add([pscustomobject]@{
+                timeSec = [Math]::Round($hold.startSec, 4)
+                lane = [int]$hold.laneFrom
+                kind = "Hold"
+                durationSec = [Math]::Round(($hold.endSec - $hold.startSec), 4)
+                intensity = 0.85
+                prefabId = $hold.prefabId
+                laneTo = [int]$hold.laneTo
+                motion = $hold.motion
+            })
+    }
+
+    foreach ($pulse in $pulsesSorted) {
+        $events.Add([pscustomobject]@{
+                timeSec = [Math]::Round($pulse.timeSec, 4)
+                lane = 0
+                kind = "Accent"
+                durationSec = 0.0
+                intensity = [Math]::Round([Math]::Max(0.0, [Math]::Min(1.0, $pulse.strength)), 3)
+                prefabId = "accent_pulse"
+                laneTo = 0
+                motion = "Slide"
+            })
+    }
+
+    foreach ($gap in $breathGaps) {
+        $events.Add([pscustomobject]@{
+                timeSec = [Math]::Round($gap.startSec, 4)
+                lane = 0
+                kind = "Gap"
+                durationSec = [Math]::Round(($gap.endSec - $gap.startSec), 4)
+                intensity = 0.0
+                prefabId = "gap"
+                laneTo = 0
+                motion = "Slide"
+            })
+    }
+
+    $eventsSorted = $events | Sort-Object timeSec
+
+    foreach ($section in $sections) {
+        $sectionDuration = [Math]::Max(0.001, $section.endSec - $section.startSec)
+        $sectionEvents = @($eventsSorted | Where-Object { $_.timeSec -ge $section.startSec -and $_.timeSec -lt $section.endSec -and $_.kind -ne "Gap" })
+        $eventCount = $sectionEvents.Count
+        $densityRaw = $eventCount / [Math]::Max(1.0, ($sectionDuration / $spb))
+        $section.density = [Math]::Round([Math]::Min(1.0, $densityRaw / 1.6), 3)
+        if ($eventCount -gt 0) {
+            $avgIntensity = ($sectionEvents | Measure-Object -Property intensity -Average).Average
+            $section.intensity = [Math]::Round([Math]::Max(0.0, [Math]::Min(1.0, $avgIntensity)), 3)
+        } else {
+            $section.intensity = if ($section.type -eq "Rest") { 0.05 } else { 0.35 }
+        }
+    }
 
     return [pscustomobject]@{
         schemaVersion = "1.0.0"
@@ -474,6 +547,7 @@ function Build-SectionsAndEvents(
         offsetSec = [Math]::Round($OffsetSec, 4)
         seed = $Seed
         sections = $sections.ToArray()
+        events = @($eventsSorted)
         tapEvents = @($tapEventsSorted)
         holdEvents = @($holdEventsSorted)
         visualPulses = @($pulsesSorted)

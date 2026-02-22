@@ -9,7 +9,9 @@ namespace ZebraDash
         private static void EnsureWorkbenchController()
         {
             Scene scene = SceneManager.GetActiveScene();
-            if (!string.Equals(scene.name, "BeatmapWorkbench", System.StringComparison.OrdinalIgnoreCase))
+            bool isWorkbench = string.Equals(scene.name, "BeatmapWorkbench", System.StringComparison.OrdinalIgnoreCase);
+            bool isBootstrap = string.Equals(scene.name, "Bootstrap", System.StringComparison.OrdinalIgnoreCase);
+            if (!isWorkbench && !isBootstrap)
             {
                 return;
             }

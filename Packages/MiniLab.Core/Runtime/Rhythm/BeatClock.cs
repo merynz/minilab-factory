@@ -4,27 +4,31 @@ namespace MiniLab.Core.Rhythm
 {
     public sealed class BeatClock : MonoBehaviour
     {
-        [SerializeField] private double scheduleLeadInSec = 0.20;
+        private const string OffsetPrefsPrefix = "minilab.rhythm.offset.";
+
+        [SerializeField] private double scheduleLeadInSec = 0.15;
 
         public double DspStartTime { get; private set; }
         public float Bpm { get; private set; }
-        public float OffsetSec { get; private set; }
+        public float UserOffsetSec { get; private set; }
+        public string OffsetTrackId { get; private set; } = "";
         public bool IsRunning { get; private set; }
 
         private AudioSource scheduledSource;
 
-        public void StartClock(AudioSource source, float bpm, float offsetSec)
+        public void StartClock(AudioSource source, float bpm, float userOffsetSec, string trackId = "")
         {
             scheduledSource = source;
             Bpm = Mathf.Max(1f, bpm);
-            OffsetSec = offsetSec;
+            UserOffsetSec = userOffsetSec;
+            OffsetTrackId = trackId ?? "";
             DspStartTime = AudioSettings.dspTime + scheduleLeadInSec;
             IsRunning = true;
 
             if (scheduledSource != null && scheduledSource.clip != null)
             {
                 scheduledSource.Stop();
-                scheduledSource.PlayScheduled(DspStartTime + OffsetSec);
+                scheduledSource.PlayScheduled(DspStartTime);
             }
         }
 
@@ -46,9 +50,11 @@ namespace MiniLab.Core.Rhythm
                     return 0f;
                 }
 
-                return (float)(AudioSettings.dspTime - DspStartTime - OffsetSec);
+                return (float)(AudioSettings.dspTime - DspStartTime) - UserOffsetSec;
             }
         }
+
+        public double DspNow => AudioSettings.dspTime;
 
         public float BeatFloat => SongTimeSec * Bpm / 60f;
 
@@ -61,6 +67,47 @@ namespace MiniLab.Core.Rhythm
         public float BeatToTimeSec(int beatIndex)
         {
             return beatIndex * SecondsPerBeat;
+        }
+
+        public float NextBeatTimeSec
+        {
+            get
+            {
+                int next = Mathf.FloorToInt(BeatFloat) + 1;
+                return BeatToTimeSec(next);
+            }
+        }
+
+        public float NextBeatDeltaSec => NextBeatTimeSec - SongTimeSec;
+
+        public static float LoadTrackOffsetSec(string trackId, float fallbackOffsetSec = 0f)
+        {
+            if (string.IsNullOrWhiteSpace(trackId))
+            {
+                return fallbackOffsetSec;
+            }
+
+            return PlayerPrefs.GetFloat(OffsetPrefsPrefix + trackId.Trim(), fallbackOffsetSec);
+        }
+
+        public static void SaveTrackOffsetSec(string trackId, float offsetSec)
+        {
+            if (string.IsNullOrWhiteSpace(trackId))
+            {
+                return;
+            }
+
+            PlayerPrefs.SetFloat(OffsetPrefsPrefix + trackId.Trim(), offsetSec);
+            PlayerPrefs.Save();
+        }
+
+        public void UpdateOffset(float offsetSec, bool persist = false)
+        {
+            UserOffsetSec = offsetSec;
+            if (persist && !string.IsNullOrWhiteSpace(OffsetTrackId))
+            {
+                SaveTrackOffsetSec(OffsetTrackId, offsetSec);
+            }
         }
     }
 }

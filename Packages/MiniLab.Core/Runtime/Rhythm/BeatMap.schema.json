@@ -17,7 +17,26 @@
         "properties": {
           "type": { "type": "string", "enum": ["Rest", "Active"] },
           "startSec": { "type": "number" },
-          "endSec": { "type": "number" }
+          "endSec": { "type": "number" },
+          "density": { "type": "number", "minimum": 0, "maximum": 1 },
+          "intensity": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["timeSec", "lane", "kind"],
+        "properties": {
+          "timeSec": { "type": "number" },
+          "lane": { "type": "integer" },
+          "kind": { "type": "string", "enum": ["Tap", "Hold", "Gap", "Accent"] },
+          "durationSec": { "type": "number", "minimum": 0 },
+          "intensity": { "type": "number", "minimum": 0, "maximum": 1 },
+          "prefabId": { "type": "string" },
+          "laneTo": { "type": "integer" },
+          "motion": { "type": "string", "enum": ["Slide", "Drop", "Oscillate"] }
         }
       }
     },
