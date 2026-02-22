@@ -460,9 +460,22 @@ namespace ZebraDash
             }
 
             float beatSec = beatGrid.BeatSec;
-            float quantizedStartSec = beatGrid.NextBeatTime(nowSec - 0.0001f);
+            float phaseCorrectedNow = nowSec + inputJudge.DeviceOffsetSec - (inputJudge.SessionPhaseMs * 0.001f);
+            float prevBeatSec = beatGrid.PrevBeatTime(phaseCorrectedNow);
+            float nextBeatSec = beatGrid.NextBeatTime(phaseCorrectedNow - 0.0001f);
+            float prevDistance = Mathf.Abs(phaseCorrectedNow - prevBeatSec);
+            float nextDistance = Mathf.Abs(nextBeatSec - phaseCorrectedNow);
+            float quantizedStartSec = prevDistance <= nextDistance ? prevBeatSec : nextBeatSec;
+            float maxPastSnapSec = Mathf.Clamp(beatSec * 0.18f, 0.06f, 0.12f);
+            if (quantizedStartSec < nowSec - maxPastSnapSec)
+            {
+                quantizedStartSec = nextBeatSec;
+            }
+
+            // Never schedule deeply in the past; keep perceived response snappy on touch devices.
+            quantizedStartSec = Mathf.Max(quantizedStartSec, nowSec - 0.01f);
             int targetLane = 1 - Mathf.Clamp(playerController.PlannedLaneIndex, 0, 1);
-            float switchSec = Mathf.Clamp(0.32f * beatSec, 0.08f, 0.16f);
+            float switchSec = Mathf.Clamp(0.24f * beatSec, 0.06f, 0.12f);
             playerController.QueueLaneSwitch(targetLane, quantizedStartSec, switchSec);
         }
 
