@@ -40,6 +40,22 @@ Not:
 .\tools\check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
 ```
 
+### APK build (cihaz hizli test)
+
+```powershell
+.\tools\build-android-apk.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-dev.apk"
+```
+
+Deterministik output/log:
+- APK: `BuildArtifacts/zebradash-dev.apk`
+- Unity log: `BuildArtifacts/unity-android-apk-build.log`
+
+Opsiyonel cihaz kurulumu:
+
+```powershell
+.\tools\install-android.ps1 -ApkPath "BuildArtifacts/zebradash-dev.apk"
+```
+
 ### AAB build
 
 ```powershell
@@ -104,6 +120,7 @@ PR workflow:
 - `tools/check-template-purity.ps1`
 - `tools/check-tree.ps1`
 - `tools/check-unity-compile.ps1`
+- `tools/check-clean-tree.ps1` (Unity run sonrasi dirty tree guard)
 - iOS dry-run (macOS yoksa bilincli SKIP)
 
 ## 4) Versioning standardi

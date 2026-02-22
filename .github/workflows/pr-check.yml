@@ -32,6 +32,10 @@ jobs:
         shell: pwsh
         run: .\tools\check-unity-compile.ps1
 
+      - name: Clean tree after Unity run
+        shell: pwsh
+        run: .\tools\check-clean-tree.ps1
+
       - name: Upload tree artifact
         uses: actions/upload-artifact@v4
         with:

@@ -59,6 +59,54 @@ namespace MiniLab.Build
             }
         }
 
+        public static void BuildAndroidApk()
+        {
+            try
+            {
+                Debug.Log("[MiniLab] BuildAndroidApk START");
+                string outputDir = GetOutputDir(
+                    "MINILAB_ANDROID_ARTIFACT_DIR",
+                    Path.Combine(Directory.GetCurrentDirectory(), "BuildArtifacts"));
+                Directory.CreateDirectory(outputDir);
+
+                string outputFileName = Environment.GetEnvironmentVariable("MINILAB_ANDROID_APK_NAME");
+                if (string.IsNullOrWhiteSpace(outputFileName))
+                {
+                    outputFileName = "zebradash-dev.apk";
+                }
+
+                string buildNumberRaw = Environment.GetEnvironmentVariable("MINILAB_ANDROID_BUILD_NUMBER");
+                if (!string.IsNullOrWhiteSpace(buildNumberRaw) && int.TryParse(buildNumberRaw, out int buildNumber))
+                {
+                    PlayerSettings.Android.bundleVersionCode = buildNumber;
+                }
+
+                AndroidStoreConfig storeConfig = LoadAndroidStoreConfig();
+                ApplyAndroidApplicationId(storeConfig.ApplicationId, storeConfig.SourcePath, storeConfig.IsPlaceholder);
+                ApplyLandscapeOrientation();
+                ValidateKeystoreConfiguration();
+
+                string[] scenes = EnsureEnabledScenesWithBootstrap();
+                string outputPath = Path.Combine(outputDir, outputFileName);
+                BuildPlayerOptions options = new BuildPlayerOptions
+                {
+                    scenes = scenes,
+                    target = BuildTarget.Android,
+                    locationPathName = outputPath
+                };
+
+                EditorUserBuildSettings.buildAppBundle = false;
+                BuildReportWithGuard(options, outputPath);
+                Debug.Log("[MiniLab] BuildAndroidApk DONE");
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"MiniLab Android APK build failed: {ex.Message}");
+                Debug.LogException(ex);
+                throw;
+            }
+        }
+
         public static void BuildiOSXcodeProject()
         {
             try

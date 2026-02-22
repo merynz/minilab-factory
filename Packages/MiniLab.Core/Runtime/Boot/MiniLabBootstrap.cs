@@ -18,8 +18,13 @@ namespace MiniLab.Core.Boot
         {
             if (settings == null)
             {
-                Debug.LogError("MiniLabBootstrap requires CoreSettings.");
-                yield break;
+                settings = Resources.Load<CoreSettings>("CoreSettings");
+                if (settings == null)
+                {
+                    settings = ScriptableObject.CreateInstance<CoreSettings>();
+                    settings.GameCode = "MINILAB_DEFAULT";
+                    Debug.LogWarning("MiniLabBootstrap fallback CoreSettings generated in-memory.");
+                }
             }
 
             remoteConfigService = new RemoteConfigService(settings.RemoteConfig);
