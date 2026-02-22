@@ -2,7 +2,7 @@
 
 - Repo: https://github.com/merynz/minilab-factory
 - PR: `https://github.com/merynz/minilab-factory/pull/new/milestone-2-juice-polish`
-- Commit: `0867395`
+- Commit: `c03d3d7`
 - Unity detected version: `6000.2.6f2 (C:\Program Files\Unity\Hub\Editor\6000.2.6f2\Editor\Unity.exe)`
 
 ## PASS / FAIL / SKIP
@@ -38,6 +38,19 @@
 - Obstacle presentation katmani ayrildi (`Straight/Diagonal/Drop/Pop`) ve hit-time invariant korundu.
 - `Long -> HoldSlide` eventleri deterministic travel + endTime ile spawn ediliyor.
 - Hazard kontrol loop'unda spawn-sira kaynakli erken `break` kaldirildi; hit-time bazli kontrol korunuyor.
+
+## Harmony + Parallax/Hitline Stabilizasyonu (c03d3d7)
+
+- `GameplayPatternGenerator` phrase planner kilitlendi:
+  - 2 bar horizon
+  - LanePlan + HazardSlots birlikte deterministic beam-search
+  - fallback sirası: offbeat↓, switch↓, hazard↓
+  - downbeat/phrase anchor (slot 0 / slot 8) skor agirligi
+- `BuildJudgeEvents` sadece `Tap/Accent` kaynakli hazard eventlerini judge kuyruğuna aliyor (tap gerektirmeyen hazardlar judge'e girmiyor).
+- `GameplayPattern.gridDebugBars` HUD'a baglandi (`Grid bX ... mask/lanePlan/k/switch/E/target/preset`) ve tuning gorunur hale geldi.
+- `ObstacleKinematics` post-hit hareketi ramp'e alindi; hitline invariant korundu (ilk frame drift azaltildi).
+- `ParallaxSystem` beat/bar pulse carpani guclendirildi ama DSP delta integrasyonlu stabil kayma korunuyor.
+- `RenderMaterialUtils` sprite gorunurlugu icin `Sprites/Default` onceligi + `_MainTex/_BaseMap` white texture set edildi.
 
 ## Milestone-2 Geometry Dash Akis Update
 
