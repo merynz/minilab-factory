@@ -34,7 +34,6 @@ namespace ZebraDash
         private Canvas canvas;
         private RectTransform uiRoot;
         private RectTransform safeAreaRoot;
-        private Rect lastSafeArea;
         private Text titleText;
         private Text statusText;
         private Text hudText;
@@ -134,8 +133,6 @@ namespace ZebraDash
 
         private void Update()
         {
-            ApplySafeAreaRoot();
-
             if (parallaxSystem != null)
             {
                 float songTime = runner != null ? runner.SongTimeSec : 0f;
@@ -635,7 +632,6 @@ namespace ZebraDash
             }
 
             EnsureSafeAreaRoot();
-            ApplySafeAreaRoot();
             foreach (Transform child in uiRoot)
             {
                 Destroy(child.gameObject);
@@ -651,14 +647,14 @@ namespace ZebraDash
 
         private void EnsureSafeAreaRoot()
         {
-            Transform existing = canvas.transform.Find("SafeAreaRoot");
+            Transform existing = canvas.transform.Find("UIRoot");
             if (existing != null)
             {
                 safeAreaRoot = existing as RectTransform;
             }
             else
             {
-                GameObject go = new GameObject("SafeAreaRoot");
+                GameObject go = new GameObject("UIRoot");
                 safeAreaRoot = go.AddComponent<RectTransform>();
             }
 
@@ -668,66 +664,12 @@ namespace ZebraDash
             safeAreaRoot.anchoredPosition3D = Vector3.zero;
             safeAreaRoot.sizeDelta = Vector2.zero;
             safeAreaRoot.pivot = new Vector2(0.5f, 0.5f);
-
-            uiRoot = safeAreaRoot;
-        }
-
-        private void ApplySafeAreaRoot()
-        {
-            if (safeAreaRoot == null)
-            {
-                return;
-            }
-
-            Rect safeArea = Screen.safeArea;
-            if (safeArea.width <= 1f || safeArea.height <= 1f)
-            {
-                safeArea = new Rect(0f, 0f, Screen.width, Screen.height);
-            }
-
-            float screenArea = Mathf.Max(1f, Screen.width * Screen.height);
-            float safeAreaCoverage = (safeArea.width * safeArea.height) / screenArea;
-            if (safeAreaCoverage < 0.70f)
-            {
-                // Some devices briefly report portrait-safe-area values while in landscape.
-                // Ignore those invalid values to avoid tiny centered UI.
-                safeArea = new Rect(0f, 0f, Screen.width, Screen.height);
-            }
-
-            if (safeArea == lastSafeArea && safeAreaRoot.anchorMin != Vector2.zero && safeAreaRoot.anchorMax != Vector2.zero)
-            {
-                return;
-            }
-
-            lastSafeArea = safeArea;
-            Vector2 anchorMin = safeArea.position;
-            Vector2 anchorMax = safeArea.position + safeArea.size;
-
-            float width = Mathf.Max(1f, Screen.width);
-            float height = Mathf.Max(1f, Screen.height);
-            anchorMin.x = Mathf.Clamp01(anchorMin.x / width);
-            anchorMin.y = Mathf.Clamp01(anchorMin.y / height);
-            anchorMax.x = Mathf.Clamp01(anchorMax.x / width);
-            anchorMax.y = Mathf.Clamp01(anchorMax.y / height);
-
-            if (anchorMax.x < anchorMin.x)
-            {
-                float t = anchorMin.x;
-                anchorMin.x = anchorMax.x;
-                anchorMax.x = t;
-            }
-
-            if (anchorMax.y < anchorMin.y)
-            {
-                float t = anchorMin.y;
-                anchorMin.y = anchorMax.y;
-                anchorMax.y = t;
-            }
-
-            safeAreaRoot.anchorMin = anchorMin;
-            safeAreaRoot.anchorMax = anchorMax;
+            safeAreaRoot.anchorMin = Vector2.zero;
+            safeAreaRoot.anchorMax = Vector2.one;
             safeAreaRoot.offsetMin = Vector2.zero;
             safeAreaRoot.offsetMax = Vector2.zero;
+
+            uiRoot = safeAreaRoot;
         }
 
         private void CleanupRuntimeSceneObjects()
