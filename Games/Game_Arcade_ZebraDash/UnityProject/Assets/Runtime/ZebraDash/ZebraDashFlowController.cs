@@ -51,6 +51,9 @@ namespace ZebraDash
         private BeatClock beatClock;
         private AudioSource audioSource;
         private ParallaxSystem parallaxSystem;
+        private Renderer laneLowerRenderer;
+        private Renderer laneUpperRenderer;
+        private Renderer hitLineRenderer;
 
         private float screenPulse;
         private float resultsDelay;
@@ -140,19 +143,6 @@ namespace ZebraDash
         {
             ApplySafeArea();
 
-            if (parallaxSystem != null)
-            {
-                float songTime = runner != null ? runner.SongTimeSec : 0f;
-                bool isPlaying = runner != null && runner.State == RunState.Playing;
-                if (runner != null)
-                {
-                    parallaxSystem.SetSectionMood(runner.CurrentSectionState, runner.CurrentStrain, runner.TargetStrain);
-                }
-                float phaseBeat = runner != null ? runner.PhaseBeat : 0f;
-                float phaseBar = runner != null ? runner.PhaseBar : 0f;
-                parallaxSystem.Tick(songTime, isPlaying, phaseBeat, phaseBar);
-            }
-
             TickPulseOverlay();
 
             if (Input.GetKeyDown(KeyCode.F3))
@@ -164,6 +154,8 @@ namespace ZebraDash
             {
                 return;
             }
+
+            TickLaneRailPulse();
 
             if (runner.State == RunState.Playing)
             {
@@ -216,6 +208,25 @@ namespace ZebraDash
                     LoadScene(SceneResults);
                 }
             }
+        }
+
+        private void LateUpdate()
+        {
+            if (parallaxSystem == null)
+            {
+                return;
+            }
+
+            float songTime = runner != null ? runner.SongTimeSec : 0f;
+            bool isPlaying = runner != null && runner.State == RunState.Playing;
+            if (runner != null)
+            {
+                parallaxSystem.SetSectionMood(runner.CurrentSectionState, runner.CurrentStrain, runner.TargetStrain);
+            }
+
+            float phaseBeat = runner != null ? runner.PhaseBeat : 0f;
+            float phaseBar = runner != null ? runner.PhaseBar : 0f;
+            parallaxSystem.Tick(songTime, isPlaying, phaseBeat, phaseBar);
         }
 
         private IEnumerator LoadCatalogIfNeeded()
@@ -357,7 +368,7 @@ namespace ZebraDash
                 worldRoot.transform,
                 new Vector3(-4f, -1.2f, 0f),
                 new Vector3(0.9f, 0.9f, 1f),
-                sortingOrder: 20);
+                sortingOrder: 26);
             Renderer playerRenderer = playerObject.GetComponent<Renderer>();
             if (playerRenderer != null)
             {
@@ -571,13 +582,16 @@ namespace ZebraDash
                 $"Progress: {runner.Progress01 * 100f:F0}%   DSP: {beatClock.DspNow:F3}   BeatMs: {runner.BeatMs:F1}   " +
                 $"Phase(b/bar): {runner.PhaseBeat:F2}/{runner.PhaseBar:F2}\n" +
                 $"Offset: track {runner.OffsetMs:F1} ms / device {runner.DeviceOffsetMs:F1} ms / phase {runner.SessionPhaseMs:F2} ms   " +
-                $"LastTap: {runner.LastTapOffsetMs:+0.0;-0.0;0.0} ms   EmptyTap: {runner.LastEmptyTapDecision}   " +
+                $"LastTap: {runner.LastTapOffsetMs:+0.0;-0.0;0.0} ms   TapResult: {runner.LastEmptyTapDecision}   " +
                 $"Mask16: {runner.HazardMaskBar}\n" +
                 $"Judge: {runner.LastJudge}   Combo: {runner.Combo}   Score: {runner.Score}   P/G/M: {runner.PerfectCount}/{runner.GoodCount}/{runner.MissCount}\n" +
                 $"Section: {runner.CurrentSectionState} ({runner.CurrentStrain:F2}/{runner.TargetStrain:F2}) preset:{runner.CurrentPresetId}   " +
                 $"Parallax x{(parallaxSystem != null ? parallaxSystem.SpeedPulseMultiplier : 1f):F2} emx{(parallaxSystem != null ? parallaxSystem.EmissivePulseMultiplier : 1f):F2}   " +
                 $"Next: {runner.NextHazardsDebug}\n" +
-                $"{runner.GridDebugLine}";
+                $"{runner.GridDebugLine}\n" +
+                $"{runner.TwoBarPlanDebug}\n" +
+                $"HazardTiming: {runner.NextHazardTimingDebug}\n" +
+                $"Obs active/pool/created: {runner.ActiveObstacleCount}/{runner.PooledObstacleCount}/{runner.CreatedObstacleCount}";
         }
 
         private void LoadScene(string sceneName)
@@ -749,14 +763,14 @@ namespace ZebraDash
                 || safe.yMin < -1f
                 || safe.xMax > (width + 1f)
                 || safe.yMax > (height + 1f);
-            bool unreasonableCoverage = coverageX < 0.92f
+            bool unreasonableCoverage = coverageX < 0.97f
                 || coverageX > 1.01f
-                || coverageY < 0.92f
+                || coverageY < 0.97f
                 || coverageY > 1.01f;
-            bool unreasonableInset = insetLeft > 0.08f
-                || insetRight > 0.08f
-                || insetBottom > 0.08f
-                || insetTop > 0.08f;
+            bool unreasonableInset = insetLeft > 0.03f
+                || insetRight > 0.03f
+                || insetBottom > 0.03f
+                || insetTop > 0.03f;
 
             if (outOfBounds || unreasonableCoverage || unreasonableInset)
             {
@@ -782,6 +796,9 @@ namespace ZebraDash
             beatClock = null;
             audioSource = null;
             parallaxSystem = null;
+            laneLowerRenderer = null;
+            laneUpperRenderer = null;
+            hitLineRenderer = null;
 
             if (runtimeRoot != null)
             {
@@ -796,40 +813,40 @@ namespace ZebraDash
             }
         }
 
-        private static void BuildLaneGuides(Transform worldRoot, float hitX)
+        private void BuildLaneGuides(Transform worldRoot, float hitX)
         {
             if (worldRoot == null)
             {
                 return;
             }
 
-            CreateWorldQuad(
+            laneLowerRenderer = CreateWorldQuad(
                 "LaneLower",
                 worldRoot,
                 new Vector3(0f, -1.2f, -1.6f),
                 new Vector3(36f, 0.10f, 1f),
-                new Color(0.28f, 0.48f, 0.70f, 0.45f),
+                new Color(0.32f, 0.56f, 0.82f, 0.62f),
                 transparent: true,
-                sortingOrder: -4);
-            CreateWorldQuad(
+                sortingOrder: 12);
+            laneUpperRenderer = CreateWorldQuad(
                 "LaneUpper",
                 worldRoot,
                 new Vector3(0f, 1.2f, -1.6f),
                 new Vector3(36f, 0.10f, 1f),
-                new Color(0.28f, 0.48f, 0.70f, 0.45f),
+                new Color(0.32f, 0.56f, 0.82f, 0.62f),
                 transparent: true,
-                sortingOrder: -4);
-            CreateWorldQuad(
+                sortingOrder: 12);
+            hitLineRenderer = CreateWorldQuad(
                 "HitLine",
                 worldRoot,
                 new Vector3(hitX, 0f, 0.6f),
-                new Vector3(0.08f, 3.2f, 1f),
-                new Color(0.95f, 0.96f, 0.98f, 0.65f),
+                new Vector3(0.10f, 3.4f, 1f),
+                new Color(0.98f, 0.99f, 1f, 0.84f),
                 transparent: true,
                 sortingOrder: 18);
         }
 
-        private static void CreateWorldQuad(
+        private static Renderer CreateWorldQuad(
             string name,
             Transform parent,
             Vector3 localPosition,
@@ -850,6 +867,44 @@ namespace ZebraDash
             {
                 renderer.sharedMaterial = RenderMaterialUtils.CreateSolidMaterial(color, transparent);
             }
+
+            return renderer;
+        }
+
+        private void TickLaneRailPulse()
+        {
+            if (runner == null)
+            {
+                return;
+            }
+
+            float beatPulse = PulseEnvelope(runner.PhaseBeat, 0.10f);
+            float accentScale = parallaxSystem != null ? (parallaxSystem.EmissivePulseMultiplier - 1f) : 0f;
+
+            ApplyPulseColor(laneLowerRenderer, new Color(0.32f, 0.56f, 0.82f, 0.50f), beatPulse, accentScale, 0.18f);
+            ApplyPulseColor(laneUpperRenderer, new Color(0.32f, 0.56f, 0.82f, 0.50f), beatPulse, accentScale, 0.18f);
+            ApplyPulseColor(hitLineRenderer, new Color(0.98f, 0.99f, 1f, 0.74f), beatPulse, accentScale, 0.28f);
+        }
+
+        private static void ApplyPulseColor(Renderer renderer, Color baseColor, float beatPulse, float accentScale, float amp)
+        {
+            if (renderer == null || renderer.material == null)
+            {
+                return;
+            }
+
+            float t = Mathf.Clamp01((beatPulse * amp) + (accentScale * amp * 0.55f));
+            Color lit = Color.Lerp(baseColor, Color.white, t);
+            lit.a = Mathf.Clamp01(baseColor.a + (t * 0.22f));
+            RenderMaterialUtils.ApplyColor(renderer.material, lit);
+        }
+
+        private static float PulseEnvelope(float phase, float width)
+        {
+            float p = Mathf.Repeat(phase, 1f);
+            float dist = Mathf.Min(p, 1f - p);
+            float t = Mathf.Clamp01(1f - (dist / Mathf.Max(0.001f, width)));
+            return t * t * (3f - (2f * t));
         }
 
         private void SetBackdrop(Color color)

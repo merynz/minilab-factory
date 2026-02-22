@@ -90,6 +90,8 @@ namespace ZebraDash
         public RestSectionEvent[] restSections = Array.Empty<RestSectionEvent>();
         public GameplayPatternSectionInfo[] sections = Array.Empty<GameplayPatternSectionInfo>();
         public GameplayGridDebugBar[] gridDebugBars = Array.Empty<GameplayGridDebugBar>();
+        public GameplayLanePlanBeat[] lanePlan = Array.Empty<GameplayLanePlanBeat>();
+        public GameplayTapScheduleEvent[] tapSchedule = Array.Empty<GameplayTapScheduleEvent>();
     }
 
     [Serializable]
@@ -104,6 +106,32 @@ namespace ZebraDash
         public int switchTarget;
         public float averageEnergy;
         public float targetStrain;
+        public string fallbackStep = "base";
+    }
+
+    [Serializable]
+    public sealed class GameplayLanePlanBeat
+    {
+        public int beatIndex;
+        public int barIndex;
+        public int beatInBar;
+        public float timeSec;
+        public int lane;
+        public string sectionType = GameplaySectionTypes.Active;
+        public string presetId = "";
+    }
+
+    [Serializable]
+    public sealed class GameplayTapScheduleEvent
+    {
+        public int beatIndex;
+        public int barIndex;
+        public int beatInBar;
+        public float timeSec;
+        public int laneFrom;
+        public int laneTo;
+        public string sectionType = GameplaySectionTypes.Active;
+        public string presetId = "";
     }
 
     public static class GameplayPatternGenerator
@@ -167,6 +195,7 @@ namespace ZebraDash
             public int BarIndex;
             public string SectionType = GameplaySectionTypes.Active;
             public string PresetId = "";
+            public string FallbackStep = "base";
             public float BarStartSec;
             public float BeatSec;
             public float TargetStrain;
@@ -218,6 +247,8 @@ namespace ZebraDash
             var events = new List<GameplayPatternEvent>(canonical.Length * 4);
             var sectionInfos = new List<GameplayPatternSectionInfo>();
             var gridDebugBars = new List<GameplayGridDebugBar>(64);
+            var lanePlanBeats = new List<GameplayLanePlanBeat>(256);
+            var tapSchedule = new List<GameplayTapScheduleEvent>(128);
             var sections = BuildSectionWindows(beatMap, rests, canonical);
 
             int laneState = 0;
@@ -261,6 +292,8 @@ namespace ZebraDash
                 GenerateSectionWithPhrasePlanner(
                     sectionEvents,
                     gridDebugBars,
+                    lanePlanBeats,
+                    tapSchedule,
                     beatMap,
                     section,
                     preset.Id,
@@ -277,6 +310,18 @@ namespace ZebraDash
                 .OrderBy(e => e.hitTimeSec)
                 .ThenBy(e => e.kind)
                 .ToArray();
+            GameplayLanePlanBeat[] lanePlanArray = lanePlanBeats
+                .OrderBy(e => e.beatIndex)
+                .ThenBy(e => e.timeSec)
+                .GroupBy(e => e.beatIndex)
+                .Select(g => g.First())
+                .ToArray();
+            GameplayTapScheduleEvent[] tapScheduleArray = tapSchedule
+                .OrderBy(e => e.beatIndex)
+                .ThenBy(e => e.timeSec)
+                .GroupBy(e => e.beatIndex)
+                .Select(g => g.First())
+                .ToArray();
 
             return new GameplayPattern
             {
@@ -285,7 +330,9 @@ namespace ZebraDash
                 events = sorted,
                 restSections = rests,
                 sections = sectionInfos.ToArray(),
-                gridDebugBars = gridDebugBars.ToArray()
+                gridDebugBars = gridDebugBars.ToArray(),
+                lanePlan = lanePlanArray,
+                tapSchedule = tapScheduleArray
             };
         }
 
@@ -381,6 +428,8 @@ namespace ZebraDash
         private static void GenerateSectionWithPhrasePlanner(
             List<GameplayPatternEvent> output,
             List<GameplayGridDebugBar> gridDebugBars,
+            List<GameplayLanePlanBeat> lanePlanBeats,
+            List<GameplayTapScheduleEvent> tapSchedule,
             BeatMap beatMap,
             SectionWindow section,
             string presetId,
@@ -434,8 +483,10 @@ namespace ZebraDash
                 {
                     PlannerBarDecision decision = decisions[i];
                     PlannerBarContext ctx = phrase[i];
+                    int laneBeforeBar = laneState;
                     EmitPlannedBarEvents(output, beatMap, section, ctx, decision, rng);
                     gridDebugBars?.Add(BuildGridDebugBar(ctx, decision));
+                    AppendPlannerTimeline(ctx, decision, laneBeforeBar, lanePlanBeats, tapSchedule);
 
                     laneState = decision.LaneAfterBeat != null && decision.LaneAfterBeat.Length > 0
                         ? decision.LaneAfterBeat[decision.LaneAfterBeat.Length - 1]
@@ -444,6 +495,61 @@ namespace ZebraDash
                 }
 
                 contextCursor += phraseCount;
+            }
+        }
+
+        private static void AppendPlannerTimeline(
+            PlannerBarContext context,
+            PlannerBarDecision decision,
+            int laneBeforeBar,
+            List<GameplayLanePlanBeat> lanePlanBeats,
+            List<GameplayTapScheduleEvent> tapSchedule)
+        {
+            if (context == null || decision == null)
+            {
+                return;
+            }
+
+            int prevLane = Mathf.Clamp(laneBeforeBar, 0, 1);
+            for (int beat = 0; beat < 4; beat++)
+            {
+                int laneTo = decision.LaneAfterBeat != null && beat < decision.LaneAfterBeat.Length
+                    ? Mathf.Clamp(decision.LaneAfterBeat[beat], 0, 1)
+                    : prevLane;
+                float beatTime = context.BarStartSec + (beat * context.BeatSec);
+                int beatIndex = (context.BarIndex * 4) + beat;
+
+                lanePlanBeats?.Add(new GameplayLanePlanBeat
+                {
+                    beatIndex = beatIndex,
+                    barIndex = context.BarIndex,
+                    beatInBar = beat,
+                    timeSec = beatTime,
+                    lane = laneTo,
+                    sectionType = context.SectionType,
+                    presetId = context.PresetId
+                });
+
+                bool switched = decision.SwitchAtBeat != null
+                    && beat < decision.SwitchAtBeat.Length
+                    && decision.SwitchAtBeat[beat]
+                    && laneTo != prevLane;
+                if (switched)
+                {
+                    tapSchedule?.Add(new GameplayTapScheduleEvent
+                    {
+                        beatIndex = beatIndex,
+                        barIndex = context.BarIndex,
+                        beatInBar = beat,
+                        timeSec = beatTime,
+                        laneFrom = prevLane,
+                        laneTo = laneTo,
+                        sectionType = context.SectionType,
+                        presetId = context.PresetId
+                    });
+                }
+
+                prevLane = laneTo;
             }
         }
 
@@ -493,7 +599,8 @@ namespace ZebraDash
                 hazardTarget = context != null ? context.HazardTarget : 0,
                 switchTarget = context != null ? context.SwitchTarget : 0,
                 averageEnergy = avgEnergy,
-                targetStrain = context != null ? context.TargetStrain : 0f
+                targetStrain = context != null ? context.TargetStrain : 0f,
+                fallbackStep = context != null ? context.FallbackStep : "base"
             };
         }
 
@@ -765,25 +872,25 @@ namespace ZebraDash
             }
 
             int tieSeed = rng != null ? rng.Next(int.MinValue, int.MaxValue) : 17;
-            PlannerBarContext[] phase0 = ClonePlannerBars(phraseBars, allowOffbeat: true, switchReduction: 0, hazardReduction: 0);
+            PlannerBarContext[] phase0 = ClonePlannerBars(phraseBars, allowOffbeat: true, switchReduction: 0, hazardReduction: 0, fallbackStep: "base");
             if (TryPlanPhrase(phase0, startLane, beamWidth: 12, tieSeed, out decisions))
             {
                 return true;
             }
 
-            PlannerBarContext[] phase1 = ClonePlannerBars(phraseBars, allowOffbeat: false, switchReduction: 0, hazardReduction: 0);
+            PlannerBarContext[] phase1 = ClonePlannerBars(phraseBars, allowOffbeat: false, switchReduction: 0, hazardReduction: 0, fallbackStep: "offbeat_down");
             if (TryPlanPhrase(phase1, startLane, beamWidth: 12, tieSeed, out decisions))
             {
                 return true;
             }
 
-            PlannerBarContext[] phase2 = ClonePlannerBars(phraseBars, allowOffbeat: false, switchReduction: 1, hazardReduction: 0);
+            PlannerBarContext[] phase2 = ClonePlannerBars(phraseBars, allowOffbeat: false, switchReduction: 1, hazardReduction: 0, fallbackStep: "switch_down");
             if (TryPlanPhrase(phase2, startLane, beamWidth: 10, tieSeed, out decisions))
             {
                 return true;
             }
 
-            PlannerBarContext[] phase3 = ClonePlannerBars(phraseBars, allowOffbeat: false, switchReduction: 1, hazardReduction: 1);
+            PlannerBarContext[] phase3 = ClonePlannerBars(phraseBars, allowOffbeat: false, switchReduction: 1, hazardReduction: 1, fallbackStep: "hazard_down");
             return TryPlanPhrase(phase3, startLane, beamWidth: 8, tieSeed, out decisions);
         }
 
@@ -791,7 +898,8 @@ namespace ZebraDash
             PlannerBarContext[] source,
             bool allowOffbeat,
             int switchReduction,
-            int hazardReduction)
+            int hazardReduction,
+            string fallbackStep)
         {
             var clone = new PlannerBarContext[source.Length];
             for (int i = 0; i < source.Length; i++)
@@ -802,6 +910,7 @@ namespace ZebraDash
                     BarIndex = s.BarIndex,
                     SectionType = s.SectionType,
                     PresetId = s.PresetId,
+                    FallbackStep = fallbackStep ?? "base",
                     BarStartSec = s.BarStartSec,
                     BeatSec = s.BeatSec,
                     TargetStrain = s.TargetStrain,

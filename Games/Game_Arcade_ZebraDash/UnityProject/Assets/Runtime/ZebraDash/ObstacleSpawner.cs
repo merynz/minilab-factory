@@ -17,6 +17,7 @@ namespace ZebraDash
         private readonly Stack<ObstacleKinematics> pool = new Stack<ObstacleKinematics>(128);
         private GameplayPattern pattern;
         private int spawnIndex;
+        private int createdCount;
 
         [Serializable]
         public struct SpawnDirective
@@ -31,6 +32,9 @@ namespace ZebraDash
 
         public IReadOnlyList<SpawnDirective> Directives => directives;
         public GameplayPattern Pattern => pattern;
+        public int ActiveCount => active.Count;
+        public int PoolCount => pool.Count;
+        public int CreatedCount => createdCount;
 
         public void Configure(GameplayPattern sourcePattern)
         {
@@ -135,6 +139,7 @@ namespace ZebraDash
                 startX: spawnX,
                 targetX: hitX,
                 travelTime: directive.TravelTimeSec,
+                beatSec: levelRunner != null ? Mathf.Max(0.0001f, levelRunner.BeatSec) : 0.5f,
                 targetLaneY: laneY,
                 eventIntensity: patternEvent.intensity,
                 seed: directive.Seed);
@@ -153,7 +158,7 @@ namespace ZebraDash
                 parent,
                 Vector3.zero,
                 new Vector3(1f, 1f, 1f),
-                sortingOrder: 15);
+                sortingOrder: 22);
 
             Renderer renderer = go.GetComponent<Renderer>();
             if (renderer != null)
@@ -168,6 +173,7 @@ namespace ZebraDash
             }
 
             go.SetActive(false);
+            createdCount++;
             return obstacle;
         }
 
@@ -211,6 +217,10 @@ namespace ZebraDash
                 color = new Color(0.16f, 0.9f, 0.95f, evt.isHazard ? 1f : 0.45f);
             }
 
+            Color laneTint = evt.lane <= 0
+                ? new Color(0.30f, 0.92f, 1f, color.a)
+                : new Color(1f, 0.52f, 0.88f, color.a);
+            color = Color.Lerp(color, laneTint, 0.24f);
             RenderMaterialUtils.ApplyColor(renderer.material, color);
         }
 
@@ -221,19 +231,21 @@ namespace ZebraDash
                 || string.Equals(kind, GameplayPatternKinds.Fakeout, StringComparison.OrdinalIgnoreCase);
         }
 
-        private static float ResolveTravelTime(GameplayPatternEvent evt)
+        private float ResolveTravelTime(GameplayPatternEvent evt)
         {
+            float beatSec = levelRunner != null ? Mathf.Max(0.0001f, levelRunner.BeatSec) : 0.5f;
+            float minVisibleSec = Mathf.Clamp(0.90f * beatSec, 0.45f, 0.85f);
             if (evt != null && evt.travelTimeSec > 0.01f)
             {
-                return evt.travelTimeSec;
+                return Mathf.Max(evt.travelTimeSec, minVisibleSec);
             }
 
             if (evt != null && string.Equals(evt.kind, GameplayPatternKinds.HoldSlide, StringComparison.OrdinalIgnoreCase))
             {
-                return 1.35f;
+                return Mathf.Max(1.35f, minVisibleSec);
             }
 
-            return 1.25f;
+            return Mathf.Max(1.25f, minVisibleSec);
         }
     }
 }

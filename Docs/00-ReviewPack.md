@@ -109,3 +109,21 @@ pwsh tools/build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProj
 
 - iOS archive/upload adimlari macOS + signing materyali olmadan calismaz.
 - Android internal upload icin release host'ta Ruby/Bundler/Fastlane + Play service json gereklidir.
+
+## Milestone-2 Presentation + Flow Stabilization (latest)
+
+- Build line: `milestone-2-juice-polish`
+- Focus: render seams/jitter azaltma, parallax stabilizasyonu, obstacle lifecycle cleanup, HUD tuning gorunurlugu.
+- Compile: PASS (`tools/check-unity-compile.ps1`)
+- Dev APK: PASS (`tools/build-android-apk.ps1`, output: `BuildArtifacts/zebradash-dev.apk`)
+- Device install+launch: PASS (`tools/install-android.ps1 -Launch`)
+- Added changelog: `review/CHANGELOG_M2_PRESENTATION.md`
+
+### Change Highlights
+
+- `ParallaxSystem`: overlap tiling + double precision scroll + LateUpdate-driven stable pulse modulation.
+- `ObstacleKinematics`: deterministic lifecycle (`Spawned -> Active -> PostHit -> Despawned`) + post-hit fade/cull.
+- `ObstacleSpawner`: min visible travel clamp (`0.45..0.85s`) + active/pool/created diagnostics.
+- `LevelRunner`: two-bar planner/hazard timing debug lines + pool stats surfaced for mobile tuning.
+- `ZebraDashFlowController`: lane/hitline readability pulse, safe-area guard tightening, extended HUD.
+- `GameplayPatternGenerator`: planner fallback step labels exposed (`base/offbeat_down/switch_down/hazard_down`).

@@ -6,6 +6,7 @@ namespace ZebraDash
 {
     public sealed class ParallaxSystem : MonoBehaviour
     {
+        private const float BaseScrollUnitsPerSec = 2.6f;
         private readonly List<ParallaxLayer> layers = new List<ParallaxLayer>();
         private float pulseStrength;
         private float lastSongTimeSec;
@@ -16,6 +17,7 @@ namespace ZebraDash
         private float beatPulse;
         private float barPulse;
         private bool initialized;
+        private bool hasClockSample;
         private Transform layerRoot;
 
         public float SpeedPulseMultiplier { get; private set; } = 1f;
@@ -26,13 +28,17 @@ namespace ZebraDash
             public Transform A;
             public Transform B;
             public float Width;
-            public float ScrollX;
+            public float Overlap;
             public float BaseY;
-            public float Speed;
+            public float BaseSpeed;
             public float BobAmp;
             public float BobFreq;
             public float Phase;
             public float PulseScale;
+            public float BeatAmp;
+            public float BarAmp;
+            public float AccentAmp;
+            public double ScrollX;
         }
 
         public void Initialize(Transform parentRoot)
@@ -46,57 +52,60 @@ namespace ZebraDash
             layerRoot.SetParent(parentRoot, false);
 
             AddLayer(
-                width: 44f,
+                width: 48f,
                 height: 18f,
                 z: -8.5f,
                 y: 0.2f,
-                color: new Color(0.07f, 0.11f, 0.19f, 1f),
-                speed: 0.55f,
-                bobAmp: 0.04f,
-                bobFreq: 0.35f,
-                pulseScale: 0.08f);
+                color: new Color(0.06f, 0.10f, 0.17f, 1f),
+                speedRatio: 0.15f,
+                bobAmp: 0.02f,
+                bobFreq: 0.28f,
+                pulseScale: 0.03f,
+                beatAmp: 0.020f,
+                barAmp: 0.015f,
+                accentAmp: 0.04f);
             AddLayer(
-                width: 40f,
+                width: 44f,
                 height: 12f,
                 z: -7.8f,
                 y: -0.3f,
-                color: new Color(0.09f, 0.17f, 0.28f, 1f),
-                speed: 0.95f,
-                bobAmp: 0.07f,
-                bobFreq: 0.55f,
-                pulseScale: 0.10f);
+                color: new Color(0.09f, 0.16f, 0.27f, 1f),
+                speedRatio: 0.25f,
+                bobAmp: 0.04f,
+                bobFreq: 0.45f,
+                pulseScale: 0.05f,
+                beatAmp: 0.030f,
+                barAmp: 0.020f,
+                accentAmp: 0.06f);
             AddLayer(
-                width: 36f,
+                width: 40f,
                 height: 9f,
                 z: -7.1f,
                 y: -0.8f,
-                color: new Color(0.11f, 0.24f, 0.36f, 1f),
-                speed: 1.45f,
-                bobAmp: 0.10f,
-                bobFreq: 0.80f,
-                pulseScale: 0.14f);
+                color: new Color(0.11f, 0.23f, 0.35f, 1f),
+                speedRatio: 0.45f,
+                bobAmp: 0.06f,
+                bobFreq: 0.72f,
+                pulseScale: 0.08f,
+                beatAmp: 0.040f,
+                barAmp: 0.030f,
+                accentAmp: 0.09f);
             AddLayer(
-                width: 32f,
+                width: 36f,
                 height: 6.5f,
                 z: -6.2f,
                 y: -1.4f,
                 color: new Color(0.14f, 0.30f, 0.44f, 1f),
-                speed: 2.10f,
-                bobAmp: 0.15f,
-                bobFreq: 1.20f,
-                pulseScale: 0.18f);
-            AddLayer(
-                width: 28f,
-                height: 4.5f,
-                z: -5.4f,
-                y: -2.0f,
-                color: new Color(0.18f, 0.35f, 0.49f, 1f),
-                speed: 2.80f,
-                bobAmp: 0.20f,
-                bobFreq: 1.65f,
-                pulseScale: 0.22f);
+                speedRatio: 0.75f,
+                bobAmp: 0.08f,
+                bobFreq: 1.15f,
+                pulseScale: 0.11f,
+                beatAmp: 0.055f,
+                barAmp: 0.040f,
+                accentAmp: 0.12f);
 
             initialized = true;
+            hasClockSample = false;
         }
 
         public void Tick(float songTimeSec, bool isPlaying, float phaseBeat = 0f, float phaseBar = 0f)
@@ -106,8 +115,18 @@ namespace ZebraDash
                 return;
             }
 
-            float delta = Mathf.Max(0f, songTimeSec - lastSongTimeSec);
-            lastSongTimeSec = songTimeSec;
+            float delta;
+            if (!hasClockSample)
+            {
+                lastSongTimeSec = songTimeSec;
+                hasClockSample = true;
+                delta = 0f;
+            }
+            else
+            {
+                delta = Mathf.Max(0f, songTimeSec - lastSongTimeSec);
+                lastSongTimeSec = songTimeSec;
+            }
 
             if (!isPlaying)
             {
@@ -119,21 +138,28 @@ namespace ZebraDash
             bobMultiplier = Mathf.MoveTowards(bobMultiplier, bobMultiplierTarget, delta * 1.6f);
             beatPulse = PulseEnvelope(phaseBeat, 0.12f);
             barPulse = PulseEnvelope(phaseBar, 0.18f);
-            SpeedPulseMultiplier = 1f + (beatPulse * 0.08f) + (barPulse * 0.04f) + (pulseStrength * 0.06f);
+            SpeedPulseMultiplier = 1f + (beatPulse * 0.04f) + (barPulse * 0.02f) + (pulseStrength * 0.03f);
             EmissivePulseMultiplier = 1f + (beatPulse * 0.38f) + (pulseStrength * 0.52f);
 
             for (int i = 0; i < layers.Count; i++)
             {
                 ParallaxLayer layer = layers[i];
-                // Integrate using DSP-derived delta to keep motion smooth when pulse multipliers change.
-                layer.ScrollX -= delta * layer.Speed * speedMultiplier * SpeedPulseMultiplier;
-                float wrappedX = -Mathf.Repeat(-layer.ScrollX, layer.Width);
+                float envelope = 1f
+                    + (beatPulse * layer.BeatAmp)
+                    + (barPulse * layer.BarAmp)
+                    + (pulseStrength * layer.AccentAmp);
+                float layerSpeed = layer.BaseSpeed * speedMultiplier * SpeedPulseMultiplier * envelope;
+                layer.ScrollX -= (double)(delta * layerSpeed);
+                float wrapRange = Mathf.Max(1f, layer.Width - layer.Overlap);
+                float wrappedX = (float)(-RepeatPositive(layer.ScrollX, wrapRange));
+                wrappedX = Mathf.Round(wrappedX * 512f) / 512f;
                 float bob = Mathf.Sin((songTimeSec * layer.BobFreq * bobMultiplier) + layer.Phase) * (layer.BobAmp * bobMultiplier);
                 float pulse = pulseStrength * layer.PulseScale;
                 float y = layer.BaseY + bob + pulse;
+                y = Mathf.Round(y * 512f) / 512f;
 
                 layer.A.localPosition = new Vector3(wrappedX, y, layer.A.localPosition.z);
-                layer.B.localPosition = new Vector3(wrappedX + layer.Width, y, layer.B.localPosition.z);
+                layer.B.localPosition = new Vector3(wrappedX + wrapRange, y, layer.B.localPosition.z);
             }
         }
 
@@ -177,26 +203,33 @@ namespace ZebraDash
             float z,
             float y,
             Color color,
-            float speed,
+            float speedRatio,
             float bobAmp,
             float bobFreq,
-            float pulseScale)
+            float pulseScale,
+            float beatAmp,
+            float barAmp,
+            float accentAmp)
         {
             var layer = new ParallaxLayer
             {
                 Width = width,
-                ScrollX = 0f,
+                Overlap = 0.22f,
+                ScrollX = 0d,
                 BaseY = y,
-                Speed = speed,
+                BaseSpeed = BaseScrollUnitsPerSec * speedRatio,
                 BobAmp = bobAmp,
                 BobFreq = bobFreq,
                 Phase = (layers.Count + 1) * 1.0472f,
-                PulseScale = pulseScale
+                PulseScale = pulseScale,
+                BeatAmp = beatAmp,
+                BarAmp = barAmp,
+                AccentAmp = accentAmp
             };
 
             int sortingOrder = -30 + layers.Count;
-            layer.A = CreateTile($"Layer_{layers.Count}_A", width, height, z, color, sortingOrder);
-            layer.B = CreateTile($"Layer_{layers.Count}_B", width, height, z, color, sortingOrder);
+            layer.A = CreateTile($"Layer_{layers.Count}_A", width + layer.Overlap, height, z, color, sortingOrder);
+            layer.B = CreateTile($"Layer_{layers.Count}_B", width + layer.Overlap, height, z, color, sortingOrder);
             layers.Add(layer);
         }
 
@@ -222,6 +255,18 @@ namespace ZebraDash
         {
             Material material = RenderMaterialUtils.CreateSolidMaterial(color);
             return material ?? new Material(Shader.Find("Sprites/Default"));
+        }
+
+        private static double RepeatPositive(double value, float length)
+        {
+            double safeLength = Math.Max(0.0001d, length);
+            double mod = value % safeLength;
+            if (mod < 0d)
+            {
+                mod += safeLength;
+            }
+
+            return mod;
         }
     }
 }

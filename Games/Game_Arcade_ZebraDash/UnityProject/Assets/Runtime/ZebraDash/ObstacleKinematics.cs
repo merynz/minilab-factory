@@ -4,9 +4,18 @@ namespace ZebraDash
 {
     public sealed class ObstacleKinematics : MonoBehaviour
     {
+        private enum LifecycleState
+        {
+            Spawned = 0,
+            Active = 1,
+            PostHit = 2,
+            Despawned = 3
+        }
+
         private float spawnTimeSec;
         private float hitTimeSec;
         private float endTimeSec;
+        private float beatSec;
         private float spawnX;
         private float hitX;
         private float laneY;
@@ -20,9 +29,15 @@ namespace ZebraDash
         private float baseScaleY = 1f;
         private float travelSpeedX;
         private float despawnGraceSec;
+        private float postHitSec;
+        private float despawnAtSec;
         private bool hitLineVerified;
         private Transform holdTelegraph;
         private Renderer holdTelegraphRenderer;
+        private SpriteRenderer spriteRenderer;
+        private Material spriteMaterial;
+        private Color baseColor = Color.white;
+        private LifecycleState lifecycleState = LifecycleState.Despawned;
         private bool initialized;
 
         public bool IsActiveVisual => initialized;
@@ -41,6 +56,7 @@ namespace ZebraDash
             float startX,
             float targetX,
             float travelTime,
+            float beatSec,
             float targetLaneY,
             float eventIntensity,
             int seed)
@@ -54,6 +70,7 @@ namespace ZebraDash
             spawnX = startX;
             hitX = targetX;
             laneY = targetLaneY;
+            this.beatSec = Mathf.Max(0.0001f, beatSec);
             travelTimeSec = Mathf.Max(0.1f, travelTime);
             travelSpeedX = Mathf.Abs(spawnX - hitX) / travelTimeSec;
             intensity = Mathf.Clamp01(eventIntensity <= 0f ? 0.6f : eventIntensity);
@@ -61,6 +78,23 @@ namespace ZebraDash
             presentationYOffset = ResolvePresentationYOffset(presentation, intensity, seed);
             hitLineVerified = false;
             initialized = true;
+            postHitSec = Mathf.Clamp(0.20f * this.beatSec, 0.08f, 0.18f);
+            despawnAtSec = Mathf.Max(endTimeSec, hitTimeSec) + postHitSec;
+            lifecycleState = LifecycleState.Spawned;
+
+            if (spriteRenderer == null)
+            {
+                spriteRenderer = GetComponent<SpriteRenderer>();
+            }
+
+            if (spriteRenderer != null)
+            {
+                spriteMaterial = spriteRenderer.material;
+                if (spriteMaterial != null)
+                {
+                    baseColor = spriteMaterial.color;
+                }
+            }
 
             if (IsHold())
             {
@@ -73,22 +107,22 @@ namespace ZebraDash
                 {
                     holdTelegraph.gameObject.SetActive(true);
                 }
-                despawnGraceSec = 0.48f;
+                despawnGraceSec = postHitSec;
             }
             else if (IsFakeout())
             {
-                holdWidth = 0.95f;
-                baseScaleY = 0.95f;
+                holdWidth = 1.15f;
+                baseScaleY = 1.10f;
                 transform.localScale = new Vector3(holdWidth, baseScaleY, 1f);
                 if (holdTelegraph != null)
                 {
                     holdTelegraph.gameObject.SetActive(false);
                 }
-                despawnGraceSec = 0.18f;
+                despawnGraceSec = postHitSec;
             }
             else
             {
-                float accentScale = Mathf.Lerp(1f, 1.25f, intensity);
+                float accentScale = Mathf.Lerp(1.15f, 1.75f, intensity);
                 holdWidth = accentScale;
                 baseScaleY = accentScale;
                 transform.localScale = new Vector3(holdWidth, baseScaleY, 1f);
@@ -96,7 +130,7 @@ namespace ZebraDash
                 {
                     holdTelegraph.gameObject.SetActive(false);
                 }
-                despawnGraceSec = 0.24f;
+                despawnGraceSec = postHitSec;
             }
 
             UpdateVisual(hitTimeSec - 0.01f);
@@ -109,15 +143,41 @@ namespace ZebraDash
                 return false;
             }
 
+            if (nowSec < hitTimeSec)
+            {
+                lifecycleState = LifecycleState.Spawned;
+            }
+            else if (nowSec <= endTimeSec + 0.0001f)
+            {
+                lifecycleState = LifecycleState.Active;
+            }
+            else if (nowSec <= despawnAtSec)
+            {
+                lifecycleState = LifecycleState.PostHit;
+            }
+            else
+            {
+                lifecycleState = LifecycleState.Despawned;
+                return false;
+            }
+
             UpdateVisual(nowSec);
             float cullTime = Mathf.Max(hitTimeSec, endTimeSec) + Mathf.Max(0.08f, despawnGraceSec);
             if (nowSec > cullTime)
             {
+                lifecycleState = LifecycleState.Despawned;
                 return false;
             }
 
             if (!IsHold() && transform.position.x <= (hitX - 2.2f))
             {
+                lifecycleState = LifecycleState.Despawned;
+                return false;
+            }
+
+            if (nowSec > hitTimeSec && IsOutOfViewport())
+            {
+                lifecycleState = LifecycleState.Despawned;
                 return false;
             }
 
@@ -127,10 +187,19 @@ namespace ZebraDash
         public void ResetVisual()
         {
             initialized = false;
+            lifecycleState = LifecycleState.Despawned;
             if (holdTelegraph != null)
             {
                 holdTelegraph.gameObject.SetActive(false);
             }
+
+            if (spriteMaterial != null)
+            {
+                RenderMaterialUtils.ApplyColor(spriteMaterial, new Color(baseColor.r, baseColor.g, baseColor.b, 1f));
+            }
+
+            transform.localScale = Vector3.one;
+            transform.localPosition = Vector3.zero;
             gameObject.SetActive(false);
         }
 
@@ -163,6 +232,8 @@ namespace ZebraDash
                 x = ResolvePostHitX(x, postHitSec, 1.15f);
             }
 
+            ApplyLifecycleVisual(nowSec);
+
             transform.position = new Vector3(x, y, 0f);
 
             if (!hitLineVerified && nowSec >= hitTimeSec)
@@ -188,6 +259,32 @@ namespace ZebraDash
             float rampEase = ramp * ramp * (3f - (2f * ramp));
             float distance = postHitSec * travelSpeedX * speedFactor * rampEase;
             return hitX - distance;
+        }
+
+        private void ApplyLifecycleVisual(float nowSec)
+        {
+            if (spriteMaterial == null)
+            {
+                return;
+            }
+
+            float alpha;
+            if (lifecycleState == LifecycleState.Spawned)
+            {
+                float preHit01 = Mathf.Clamp01((nowSec - spawnTimeSec) / Mathf.Max(0.0001f, hitTimeSec - spawnTimeSec));
+                alpha = Mathf.Lerp(0.45f, 1f, preHit01);
+            }
+            else if (lifecycleState == LifecycleState.PostHit)
+            {
+                float fade01 = Mathf.Clamp01((nowSec - endTimeSec) / Mathf.Max(0.0001f, postHitSec));
+                alpha = Mathf.Lerp(1f, 0f, fade01);
+            }
+            else
+            {
+                alpha = 1f;
+            }
+
+            RenderMaterialUtils.ApplyColor(spriteMaterial, new Color(baseColor.r, baseColor.g, baseColor.b, Mathf.Clamp01(alpha)));
         }
 
         private float ResolvePresentationY(float nowSec, float eased, float raw)
@@ -308,6 +405,18 @@ namespace ZebraDash
         private bool IsFakeout()
         {
             return string.Equals(kind, GameplayPatternKinds.Fakeout, System.StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsOutOfViewport()
+        {
+            Camera cam = Camera.main;
+            if (cam == null)
+            {
+                return false;
+            }
+
+            Vector3 viewport = cam.WorldToViewportPoint(transform.position);
+            return viewport.x < -0.20f || viewport.x > 1.20f || viewport.y < -0.30f || viewport.y > 1.30f;
         }
     }
 }
