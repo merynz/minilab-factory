@@ -145,16 +145,15 @@ namespace ZebraDash
 
         private ObstacleKinematics CreateNewObstacle()
         {
-            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            go.name = "Obstacle";
-            if (levelRunner != null && levelRunner.WorldRoot != null)
-            {
-                go.transform.SetParent(levelRunner.WorldRoot, false);
-            }
-            else
-            {
-                go.transform.SetParent(transform, false);
-            }
+            Transform parent = levelRunner != null && levelRunner.WorldRoot != null
+                ? levelRunner.WorldRoot
+                : transform;
+            GameObject go = RuntimeSpriteFactory.Create(
+                "Obstacle",
+                parent,
+                Vector3.zero,
+                new Vector3(1f, 1f, 1f),
+                sortingOrder: 15);
 
             Renderer renderer = go.GetComponent<Renderer>();
             if (renderer != null)

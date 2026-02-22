@@ -29,6 +29,7 @@ namespace ZebraDash
         [SerializeField] private PlayerController playerController;
         [SerializeField, Range(2, 4)] private int countdownBeats = 3;
         [SerializeField] private float collisionWindowSec = 0.07f;
+        [SerializeField] private float introCollisionGraceSec = 0.95f;
 
         private RunState state = RunState.Idle;
         private float countdownRemaining;
@@ -60,6 +61,9 @@ namespace ZebraDash
         private string currentPresetId = "";
         private string lastEmptyTapDecision = "None";
         private float lastTapOffsetMs;
+        private bool hazardsArmed;
+        private float hazardsAutoArmSec;
+        private readonly BeatGrid beatGrid = new BeatGrid(120f, 4, 4);
 
         private readonly InputJudge inputJudge = new InputJudge(new JudgeWindows
         {
@@ -98,6 +102,13 @@ namespace ZebraDash
         public string LastEmptyTapDecision => lastEmptyTapDecision;
         public float Progress01 => levelDurationSec > 0f ? Mathf.Clamp01(SongTimeSec / levelDurationSec) : 0f;
         public int CurrentBeat => beatClock != null ? beatClock.BeatIndex : 0;
+        public int CurrentBar => beatGrid.BarIndex(SongTimeSec);
+        public float BeatSec => beatGrid.BeatSec;
+        public float BarSec => beatGrid.BarSec;
+        public float PhaseBeat => beatGrid.GetPhaseBeat(SongTimeSec);
+        public float PhaseBar => beatGrid.GetPhaseBar(SongTimeSec);
+        public string HazardMaskBar => BuildCurrentBarHazardMask();
+        public string GridDebugLine => BuildCurrentGridDebugLine();
         public string CurrentSectionState => currentSectionState;
         public float CurrentStrain => currentStrain;
         public float TargetStrain => targetStrain;
@@ -140,7 +151,7 @@ namespace ZebraDash
             }
 
             Screen.orientation = ScreenOrientation.LandscapeLeft;
-            Screen.autorotateToLandscapeLeft = true;
+            Screen.autorotateToLandscapeLeft = false;
             Screen.autorotateToLandscapeRight = false;
             Screen.autorotateToPortrait = false;
             Screen.autorotateToPortraitUpsideDown = false;
@@ -172,6 +183,7 @@ namespace ZebraDash
             if (state == RunState.Playing)
             {
                 float songTime = SongTimeSec;
+                playerController?.SetTimingContext(songTime, beatGrid.BeatSec);
                 obstacleSpawner?.Tick(songTime);
                 TickSectionState(songTime);
                 TickHazards(songTime);
@@ -249,6 +261,7 @@ namespace ZebraDash
             levelDurationSec = explicitDurationSec > 0f
                 ? explicitDurationSec
                 : EstimateLevelDuration(runtimeBeatMap);
+            beatGrid.Configure(runtimeBeatMap != null ? runtimeBeatMap.bpm : activeBeatMap.bpm, 4, 4);
 
             canonicalEvents = BeatMapEventUtils.GetCanonicalEvents(runtimeBeatMap);
             activePattern = GameplayPatternGenerator.Build(runtimeBeatMap, activeTrackId, 1f);
@@ -283,6 +296,7 @@ namespace ZebraDash
             lastEmptyTapDecision = "None";
             lastTapOffsetMs = 0f;
             worldShiftX = 0f;
+            hazardsArmed = false;
             ResetWorldShift();
 
             obstacleSpawner.Configure(activePattern);
@@ -292,11 +306,13 @@ namespace ZebraDash
             inputJudge.ConfigureForBpm(runtimeBeatMap != null ? runtimeBeatMap.bpm : activeBeatMap.bpm);
             inputJudge.ResetSessionPhase();
             playerController.InitializeLanes(-1.2f, 1.2f);
-            playerController.SetLane(0);
+            playerController.SetLane(ResolveInitialLane(activePattern));
             playerController.SetInputEnabled(false);
 
             float secondsPerBeat = 60f / Mathf.Max(1f, runtimeBeatMap != null ? runtimeBeatMap.bpm : activeBeatMap.bpm);
-            countdownRemaining = secondsPerBeat * Mathf.Clamp(countdownBeats, 2, 4);
+            introCollisionGraceSec = Mathf.Max(3.2f, secondsPerBeat * 7f);
+            hazardsAutoArmSec = Mathf.Max(7f, introCollisionGraceSec + 1f);
+            countdownRemaining = 3f;
             TransitionTo(RunState.Countdown);
         }
 
@@ -345,10 +361,12 @@ namespace ZebraDash
                 return;
             }
 
+            float failSongSec = beatClock != null ? beatClock.NowSeconds : 0f;
             failReason = string.IsNullOrWhiteSpace(reason) ? "Collision" : reason;
             playerController.SetInputEnabled(false);
             beatClock.StopClock();
             audioSource.Stop();
+            Debug.Log($"[ZebraDash] FailRun reason={failReason} song={failSongSec:F3}s lane={(playerController != null ? playerController.LaneIndex : -1)}");
             TransitionTo(RunState.Failed);
         }
 
@@ -363,6 +381,7 @@ namespace ZebraDash
 
             float bpm = runtimeBeatMap != null ? runtimeBeatMap.bpm : activeBeatMap.bpm;
             beatClock.StartClock(audioSource, bpm, activeOffsetSec, activeTrackId);
+            playerController?.SetTimingContext(0f, beatGrid.BeatSec);
             playerController.SetInputEnabled(true);
             TransitionTo(RunState.Playing);
         }
@@ -388,6 +407,7 @@ namespace ZebraDash
             }
 
             float now = SongTimeSec;
+            QueueQuantizedLaneSwitch(now);
             JudgeOutcome outcome = inputJudge.EvaluateNearest(
                 tapJudgeEvents,
                 consumedTapIndices,
@@ -408,6 +428,7 @@ namespace ZebraDash
 
             if (matched)
             {
+                hazardsArmed = true;
                 consumedTapIndices.Add(outcome.EventIndex);
                 if (outcome.Result == JudgeResult.Perfect)
                 {
@@ -436,6 +457,26 @@ namespace ZebraDash
             {
                 lastJudge = "Ignored";
             }
+        }
+
+        private void QueueQuantizedLaneSwitch(float nowSec)
+        {
+            if (playerController == null)
+            {
+                return;
+            }
+
+            float phaseCompensatedTapSec = nowSec - (inputJudge.SessionPhaseMs / 1000f);
+            float quantizedStartSec = beatGrid.QuantizeToBeat(phaseCompensatedTapSec);
+            float beatSec = beatGrid.BeatSec;
+            if (quantizedStartSec < nowSec - (beatSec * 0.20f))
+            {
+                quantizedStartSec = beatGrid.NextBeatTime(nowSec - 0.001f);
+            }
+
+            int targetLane = 1 - Mathf.Clamp(playerController.PlannedLaneIndex, 0, 1);
+            float switchSec = Mathf.Clamp(0.32f * beatSec, 0.08f, 0.16f);
+            playerController.QueueLaneSwitch(targetLane, quantizedStartSec, switchSec);
         }
 
         private void TickAutoMiss(float now)
@@ -469,6 +510,21 @@ namespace ZebraDash
 
         private void TickHazards(float now)
         {
+            if (!hazardsArmed)
+            {
+                if (now < hazardsAutoArmSec)
+                {
+                    return;
+                }
+
+                hazardsArmed = true;
+            }
+
+            if (now < introCollisionGraceSec)
+            {
+                return;
+            }
+
             IReadOnlyList<ObstacleSpawner.SpawnDirective> hazards = obstacleSpawner.Directives;
             for (int i = 0; i < hazards.Count; i++)
             {
@@ -850,7 +906,12 @@ namespace ZebraDash
             List<BeatEvent> judgeEvents = new List<BeatEvent>();
             List<string> archetypes = new List<string>();
             GameplayPatternEvent[] sorted = pattern.events
-                .Where(e => e != null && e.isHazard && string.Equals(e.kind, GameplayPatternKinds.Jump, StringComparison.OrdinalIgnoreCase))
+                .Where(e =>
+                    e != null
+                    && e.isHazard
+                    && string.Equals(e.kind, GameplayPatternKinds.Jump, StringComparison.OrdinalIgnoreCase)
+                    && (string.Equals(e.sourceKind, BeatKinds.Tap, StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(e.sourceKind, BeatKinds.Accent, StringComparison.OrdinalIgnoreCase)))
                 .OrderBy(e => e.hitTimeSec)
                 .ToArray();
 
@@ -921,6 +982,118 @@ namespace ZebraDash
             }
 
             return preview.Count == 0 ? "-" : string.Join(" | ", preview);
+        }
+
+        private string BuildCurrentBarHazardMask()
+        {
+            if (obstacleSpawner == null || beatGrid.BeatSec <= 0.0001f)
+            {
+                return "0000000000000000";
+            }
+
+            float now = SongTimeSec;
+            int barIndex = beatGrid.BarIndex(now);
+            float barStart = barIndex * beatGrid.BarSec;
+            float subSec = beatGrid.SubSec;
+            int mask = 0;
+            IReadOnlyList<ObstacleSpawner.SpawnDirective> directives = obstacleSpawner.Directives;
+            for (int i = 0; i < directives.Count; i++)
+            {
+                GameplayPatternEvent evt = directives[i].PatternEvent;
+                if (evt == null || !evt.isHazard)
+                {
+                    continue;
+                }
+
+                float hit = directives[i].HitTimeSec;
+                if (hit < barStart || hit >= barStart + beatGrid.BarSec)
+                {
+                    continue;
+                }
+
+                int slot = Mathf.Clamp(Mathf.FloorToInt((hit - barStart) / Mathf.Max(0.0001f, subSec)), 0, 15);
+                mask |= (1 << slot);
+            }
+
+            char[] bits = new char[16];
+            for (int i = 0; i < 16; i++)
+            {
+                bits[15 - i] = (mask & (1 << i)) != 0 ? '1' : '0';
+            }
+
+            return new string(bits);
+        }
+
+        private string BuildCurrentGridDebugLine()
+        {
+            GameplayGridDebugBar[] bars = activePattern?.gridDebugBars;
+            if (bars == null || bars.Length == 0)
+            {
+                return "Grid: -";
+            }
+
+            int currentBar = CurrentBar;
+            GameplayGridDebugBar chosen = null;
+            for (int i = 0; i < bars.Length; i++)
+            {
+                GameplayGridDebugBar bar = bars[i];
+                if (bar == null)
+                {
+                    continue;
+                }
+
+                if (bar.barIndex == currentBar)
+                {
+                    chosen = bar;
+                    break;
+                }
+
+                if (bar.barIndex <= currentBar && (chosen == null || bar.barIndex > chosen.barIndex))
+                {
+                    chosen = bar;
+                }
+            }
+
+            if (chosen == null)
+            {
+                chosen = bars[0];
+            }
+
+            return $"Grid b{chosen.barIndex} {chosen.sectionType} mask:{chosen.hazardMask16} lanes:{chosen.lanePlan} " +
+                   $"k:{chosen.hazardTarget} sw:{chosen.switchTarget} E:{chosen.averageEnergy:F2} target:{chosen.targetStrain:F2} {chosen.presetId}";
+        }
+
+        private int ResolveInitialLane(GameplayPattern pattern)
+        {
+            if (pattern?.events == null || pattern.events.Length == 0)
+            {
+                return 0;
+            }
+
+            float safeWindowSec = Mathf.Max(1.20f, introCollisionGraceSec + 0.15f);
+            for (int i = 0; i < pattern.events.Length; i++)
+            {
+                GameplayPatternEvent evt = pattern.events[i];
+                if (evt == null || !evt.isHazard)
+                {
+                    continue;
+                }
+
+                if (evt.hitTimeSec < 0f)
+                {
+                    continue;
+                }
+
+                int hazardLane = Mathf.Clamp(evt.lane, 0, 1);
+                if (evt.hitTimeSec <= safeWindowSec)
+                {
+                    return 1 - hazardLane;
+                }
+
+                break;
+            }
+
+            return 0;
         }
 
         private static bool IsPunishSection(string sectionType)

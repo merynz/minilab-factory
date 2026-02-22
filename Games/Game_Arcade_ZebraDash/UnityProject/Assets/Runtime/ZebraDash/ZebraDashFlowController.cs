@@ -40,6 +40,9 @@ namespace ZebraDash
         private Text countdownText;
         private GameObject pausePanel;
         private Image pulseOverlay;
+        private Rect lastSafeArea = new Rect(0f, 0f, -1f, -1f);
+        private Vector2Int lastScreenSize = Vector2Int.zero;
+        private bool safeAreaFallbackLogged;
         private static Material cachedPlayerMaterial;
 
         private GameObject runtimeRoot;
@@ -112,7 +115,7 @@ namespace ZebraDash
             Screen.autorotateToLandscapeRight = false;
             Screen.autorotateToPortrait = false;
             Screen.autorotateToPortraitUpsideDown = false;
-            debugOverlayVisible = Debug.isDebugBuild || Application.isEditor;
+            debugOverlayVisible = Application.isEditor;
         }
 
         private void OnEnable()
@@ -135,6 +138,8 @@ namespace ZebraDash
 
         private void Update()
         {
+            ApplySafeArea();
+
             if (parallaxSystem != null)
             {
                 float songTime = runner != null ? runner.SongTimeSec : 0f;
@@ -143,7 +148,9 @@ namespace ZebraDash
                 {
                     parallaxSystem.SetSectionMood(runner.CurrentSectionState, runner.CurrentStrain, runner.TargetStrain);
                 }
-                parallaxSystem.Tick(songTime, isPlaying);
+                float phaseBeat = runner != null ? runner.PhaseBeat : 0f;
+                float phaseBar = runner != null ? runner.PhaseBar : 0f;
+                parallaxSystem.Tick(songTime, isPlaying, phaseBeat, phaseBar);
             }
 
             TickPulseOverlay();
@@ -345,10 +352,12 @@ namespace ZebraDash
             camera.backgroundColor = new Color(0.06f, 0.10f, 0.17f, 1f);
 
             GameObject worldRoot = new GameObject("WorldRoot");
-            playerObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            playerObject.name = "Player";
-            playerObject.transform.position = new Vector3(-4f, -1.2f, 0f);
-            playerObject.transform.localScale = new Vector3(0.7f, 0.7f, 1f);
+            playerObject = RuntimeSpriteFactory.Create(
+                "Player",
+                worldRoot.transform,
+                new Vector3(-4f, -1.2f, 0f),
+                new Vector3(0.9f, 0.9f, 1f),
+                sortingOrder: 20);
             Renderer playerRenderer = playerObject.GetComponent<Renderer>();
             if (playerRenderer != null)
             {
@@ -558,13 +567,17 @@ namespace ZebraDash
             return
                 $"Track: {(selectedTrack != null ? selectedTrack.trackId : "-")}   " +
                 $"State: {runner.State}   " +
-                $"Beat: {runner.CurrentBeat}   " +
-                $"Progress: {runner.Progress01 * 100f:F0}%   DSP: {beatClock.DspNow:F3}   BeatMs: {runner.BeatMs:F1}\n" +
+                $"Beat/Bar: {runner.CurrentBeat}/{runner.CurrentBar}   " +
+                $"Progress: {runner.Progress01 * 100f:F0}%   DSP: {beatClock.DspNow:F3}   BeatMs: {runner.BeatMs:F1}   " +
+                $"Phase(b/bar): {runner.PhaseBeat:F2}/{runner.PhaseBar:F2}\n" +
                 $"Offset: track {runner.OffsetMs:F1} ms / device {runner.DeviceOffsetMs:F1} ms / phase {runner.SessionPhaseMs:F2} ms   " +
-                $"LastTap: {runner.LastTapOffsetMs:+0.0;-0.0;0.0} ms   EmptyTap: {runner.LastEmptyTapDecision}\n" +
+                $"LastTap: {runner.LastTapOffsetMs:+0.0;-0.0;0.0} ms   EmptyTap: {runner.LastEmptyTapDecision}   " +
+                $"Mask16: {runner.HazardMaskBar}\n" +
                 $"Judge: {runner.LastJudge}   Combo: {runner.Combo}   Score: {runner.Score}   P/G/M: {runner.PerfectCount}/{runner.GoodCount}/{runner.MissCount}\n" +
                 $"Section: {runner.CurrentSectionState} ({runner.CurrentStrain:F2}/{runner.TargetStrain:F2}) preset:{runner.CurrentPresetId}   " +
-                $"Next: {runner.NextHazardsDebug}";
+                $"Parallax x{(parallaxSystem != null ? parallaxSystem.SpeedPulseMultiplier : 1f):F2} emx{(parallaxSystem != null ? parallaxSystem.EmissivePulseMultiplier : 1f):F2}   " +
+                $"Next: {runner.NextHazardsDebug}\n" +
+                $"{runner.GridDebugLine}";
         }
 
         private void LoadScene(string sceneName)
@@ -599,6 +612,7 @@ namespace ZebraDash
 
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.pixelPerfect = false;
+            canvas.sortingOrder = 5000;
 
             RectTransform canvasRect = canvas.transform as RectTransform;
             if (canvasRect != null)
@@ -646,6 +660,7 @@ namespace ZebraDash
             EnsureSafeAreaRoot();
             foreach (Transform child in uiRoot)
             {
+                child.gameObject.SetActive(false);
                 Destroy(child.gameObject);
             }
 
@@ -682,6 +697,83 @@ namespace ZebraDash
             safeAreaRoot.offsetMax = Vector2.zero;
 
             uiRoot = safeAreaRoot;
+            ApplySafeArea(force: true);
+        }
+
+        private void ApplySafeArea(bool force = false)
+        {
+            if (safeAreaRoot == null)
+            {
+                return;
+            }
+
+            Vector2Int screenSize = new Vector2Int(Mathf.Max(1, Screen.width), Mathf.Max(1, Screen.height));
+            bool fallbackToFull;
+            Rect safe = ResolveStableSafeArea(screenSize, out fallbackToFull);
+            if (!force && screenSize == lastScreenSize && ApproximatelyEqual(safe, lastSafeArea))
+            {
+                return;
+            }
+
+            if (fallbackToFull && !safeAreaFallbackLogged)
+            {
+                safeAreaFallbackLogged = true;
+                Rect raw = Screen.safeArea;
+                Debug.LogWarning($"[ZebraDashFlow] SafeArea fallback -> fullscreen. raw=({raw.x:F0},{raw.y:F0},{raw.width:F0},{raw.height:F0}) screen=({screenSize.x},{screenSize.y})");
+            }
+
+            Vector2 anchorMin = new Vector2(safe.xMin / screenSize.x, safe.yMin / screenSize.y);
+            Vector2 anchorMax = new Vector2(safe.xMax / screenSize.x, safe.yMax / screenSize.y);
+            safeAreaRoot.anchorMin = anchorMin;
+            safeAreaRoot.anchorMax = anchorMax;
+            safeAreaRoot.offsetMin = Vector2.zero;
+            safeAreaRoot.offsetMax = Vector2.zero;
+
+            lastSafeArea = safe;
+            lastScreenSize = screenSize;
+        }
+
+        private static Rect ResolveStableSafeArea(Vector2Int screenSize, out bool fallbackToFull)
+        {
+            Rect safe = Screen.safeArea;
+            float width = Mathf.Max(1f, screenSize.x);
+            float height = Mathf.Max(1f, screenSize.y);
+
+            float coverageX = safe.width / width;
+            float coverageY = safe.height / height;
+            float insetLeft = Mathf.Max(0f, safe.xMin) / width;
+            float insetRight = Mathf.Max(0f, width - safe.xMax) / width;
+            float insetBottom = Mathf.Max(0f, safe.yMin) / height;
+            float insetTop = Mathf.Max(0f, height - safe.yMax) / height;
+            bool outOfBounds = safe.xMin < -1f
+                || safe.yMin < -1f
+                || safe.xMax > (width + 1f)
+                || safe.yMax > (height + 1f);
+            bool unreasonableCoverage = coverageX < 0.92f
+                || coverageX > 1.01f
+                || coverageY < 0.92f
+                || coverageY > 1.01f;
+            bool unreasonableInset = insetLeft > 0.08f
+                || insetRight > 0.08f
+                || insetBottom > 0.08f
+                || insetTop > 0.08f;
+
+            if (outOfBounds || unreasonableCoverage || unreasonableInset)
+            {
+                fallbackToFull = true;
+                return new Rect(0f, 0f, width, height);
+            }
+
+            fallbackToFull = false;
+            return safe;
+        }
+
+        private static bool ApproximatelyEqual(Rect a, Rect b)
+        {
+            return Mathf.Abs(a.x - b.x) < 0.5f
+                && Mathf.Abs(a.y - b.y) < 0.5f
+                && Mathf.Abs(a.width - b.width) < 0.5f
+                && Mathf.Abs(a.height - b.height) < 0.5f;
         }
 
         private void CleanupRuntimeSceneObjects()
@@ -714,24 +806,27 @@ namespace ZebraDash
             CreateWorldQuad(
                 "LaneLower",
                 worldRoot,
-                new Vector3(0f, -1.2f, 1.5f),
+                new Vector3(0f, -1.2f, -1.6f),
                 new Vector3(36f, 0.10f, 1f),
-                new Color(0.28f, 0.48f, 0.70f, 0.75f),
-                transparent: true);
+                new Color(0.28f, 0.48f, 0.70f, 0.45f),
+                transparent: true,
+                sortingOrder: -4);
             CreateWorldQuad(
                 "LaneUpper",
                 worldRoot,
-                new Vector3(0f, 1.2f, 1.5f),
+                new Vector3(0f, 1.2f, -1.6f),
                 new Vector3(36f, 0.10f, 1f),
-                new Color(0.28f, 0.48f, 0.70f, 0.75f),
-                transparent: true);
+                new Color(0.28f, 0.48f, 0.70f, 0.45f),
+                transparent: true,
+                sortingOrder: -4);
             CreateWorldQuad(
                 "HitLine",
                 worldRoot,
-                new Vector3(hitX, 0f, 1.4f),
+                new Vector3(hitX, 0f, 0.6f),
                 new Vector3(0.08f, 3.2f, 1f),
                 new Color(0.95f, 0.96f, 0.98f, 0.65f),
-                transparent: true);
+                transparent: true,
+                sortingOrder: 18);
         }
 
         private static void CreateWorldQuad(
@@ -740,24 +835,20 @@ namespace ZebraDash
             Vector3 localPosition,
             Vector3 localScale,
             Color color,
-            bool transparent)
+            bool transparent,
+            int sortingOrder)
         {
-            GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            quad.name = name;
-            quad.transform.SetParent(parent, false);
-            quad.transform.localPosition = localPosition;
-            quad.transform.localScale = localScale;
+            GameObject quad = RuntimeSpriteFactory.Create(
+                name,
+                parent,
+                localPosition,
+                localScale,
+                sortingOrder: sortingOrder);
 
             Renderer renderer = quad.GetComponent<Renderer>();
             if (renderer != null)
             {
                 renderer.sharedMaterial = RenderMaterialUtils.CreateSolidMaterial(color, transparent);
-            }
-
-            Collider collider = quad.GetComponent<Collider>();
-            if (collider != null)
-            {
-                UnityEngine.Object.Destroy(collider);
             }
         }
 

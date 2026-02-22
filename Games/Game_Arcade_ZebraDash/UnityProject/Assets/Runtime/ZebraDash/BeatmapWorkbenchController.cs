@@ -59,6 +59,10 @@ namespace ZebraDash
         private IEnumerator Start()
         {
             Screen.orientation = ScreenOrientation.LandscapeLeft;
+            Screen.autorotateToLandscapeLeft = false;
+            Screen.autorotateToLandscapeRight = false;
+            Screen.autorotateToPortrait = false;
+            Screen.autorotateToPortraitUpsideDown = false;
             statusLine = "music_catalog yukleniyor...";
             MusicCatalog loadedCatalog = null;
             string catalogError = "";
@@ -196,9 +200,12 @@ namespace ZebraDash
             GameObject player = GameObject.Find("Player");
             if (player == null)
             {
-                player = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-                player.name = "Player";
-                player.transform.position = new Vector3(-4f, 0f, 0f);
+                player = RuntimeSpriteFactory.Create(
+                    "Player",
+                    worldRoot.transform,
+                    new Vector3(-4f, 0f, 0f),
+                    new Vector3(0.9f, 0.9f, 1f),
+                    sortingOrder: 20);
             }
 
             levelRunner = GetComponent<LevelRunner>();

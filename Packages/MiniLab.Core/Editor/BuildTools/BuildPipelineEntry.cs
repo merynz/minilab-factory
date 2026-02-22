@@ -362,6 +362,8 @@ namespace MiniLab.Build
             PlayerSettings.allowedAutorotateToLandscapeRight = false;
             PlayerSettings.allowedAutorotateToPortrait = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
+            PlayerSettings.Android.resizeableActivity = false;
+            PlayerSettings.Android.startInFullscreen = true;
         }
 
         private static string SanitizeFileName(string value)

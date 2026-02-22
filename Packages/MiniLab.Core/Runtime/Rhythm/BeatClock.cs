@@ -8,6 +8,8 @@ namespace MiniLab.Core.Rhythm
         private const string OffsetPrefsPrefixMs = "TrackOffsetMs_";
 
         [SerializeField] private double scheduleLeadInSec = 0.15;
+        [SerializeField] private int barBeats = 4;
+        [SerializeField] private int subdiv = 4;
 
         public double DspStartTime { get; private set; }
         public float Bpm { get; private set; }
@@ -19,12 +21,14 @@ namespace MiniLab.Core.Rhythm
 
         private AudioSource scheduledSource;
         private bool hasScheduledSource;
+        private readonly BeatGrid beatGrid = new BeatGrid(120f, 4, 4);
 
         public void StartClock(AudioSource source, float bpm, float userOffsetSec, string trackId = "")
         {
             scheduledSource = source;
             hasScheduledSource = scheduledSource != null && scheduledSource.clip != null;
             Bpm = Mathf.Max(1f, bpm);
+            beatGrid.Configure(Bpm, barBeats, subdiv);
             UserOffsetSec = userOffsetSec;
             OffsetTrackId = trackId ?? "";
             DspStartTime = AudioSettings.dspTime + scheduleLeadInSec;
@@ -130,7 +134,7 @@ namespace MiniLab.Core.Rhythm
 
         public int BeatIndex => Mathf.FloorToInt(BeatFloat);
 
-        public int BarIndex => Mathf.FloorToInt(BeatFloat / 4f);
+        public int BarIndex => beatGrid.BarIndex(SongTimeSec);
 
         public float SecondsPerBeat => 60f / Mathf.Max(1f, Bpm);
 
@@ -151,6 +155,28 @@ namespace MiniLab.Core.Rhythm
         }
 
         public float NextBeatDeltaSec => NextBeatTimeSec - SongTimeSec;
+
+        public BeatGrid Grid => beatGrid;
+
+        public float BarSeconds => beatGrid.BarSec;
+
+        public float SubSeconds => beatGrid.SubSec;
+
+        public int BarBeatCount => beatGrid.BarBeats;
+
+        public int Subdivisions => beatGrid.Subdiv;
+
+        public float BeatPhase => beatGrid.GetPhaseBeat(SongTimeSec);
+
+        public float BarPhase => beatGrid.GetPhaseBar(SongTimeSec);
+
+        public int SubdivisionIndex => beatGrid.SubIndex(SongTimeSec);
+
+        public float QuantizeToBeat(float timeSec) => beatGrid.QuantizeToBeat(timeSec);
+
+        public float QuantizeToSub(float timeSec) => beatGrid.QuantizeToSub(timeSec);
+
+        public float NextSubTimeSec => beatGrid.NextSubTime(SongTimeSec);
 
         public static float LoadTrackOffsetSec(string trackId, float fallbackOffsetSec = 0f)
         {

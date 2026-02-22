@@ -18,6 +18,8 @@ namespace ZebraDash
         private float presentationYOffset;
         private float holdWidth;
         private float baseScaleY = 1f;
+        private float travelSpeedX;
+        private float despawnGraceSec;
         private bool hitLineVerified;
         private Transform holdTelegraph;
         private Renderer holdTelegraphRenderer;
@@ -53,6 +55,7 @@ namespace ZebraDash
             hitX = targetX;
             laneY = targetLaneY;
             travelTimeSec = Mathf.Max(0.1f, travelTime);
+            travelSpeedX = Mathf.Abs(spawnX - hitX) / travelTimeSec;
             intensity = Mathf.Clamp01(eventIntensity <= 0f ? 0.6f : eventIntensity);
             wobbleSeed = seed * 0.173f;
             presentationYOffset = ResolvePresentationYOffset(presentation, intensity, seed);
@@ -70,6 +73,7 @@ namespace ZebraDash
                 {
                     holdTelegraph.gameObject.SetActive(true);
                 }
+                despawnGraceSec = 0.48f;
             }
             else if (IsFakeout())
             {
@@ -80,6 +84,7 @@ namespace ZebraDash
                 {
                     holdTelegraph.gameObject.SetActive(false);
                 }
+                despawnGraceSec = 0.18f;
             }
             else
             {
@@ -91,6 +96,7 @@ namespace ZebraDash
                 {
                     holdTelegraph.gameObject.SetActive(false);
                 }
+                despawnGraceSec = 0.24f;
             }
 
             UpdateVisual(hitTimeSec - 0.01f);
@@ -104,8 +110,18 @@ namespace ZebraDash
             }
 
             UpdateVisual(nowSec);
-            float cullTime = endTimeSec + 2f;
-            return nowSec <= cullTime;
+            float cullTime = Mathf.Max(hitTimeSec, endTimeSec) + Mathf.Max(0.08f, despawnGraceSec);
+            if (nowSec > cullTime)
+            {
+                return false;
+            }
+
+            if (!IsHold() && transform.position.x <= (hitX - 2.2f))
+            {
+                return false;
+            }
+
+            return true;
         }
 
         public void ResetVisual()
@@ -120,9 +136,11 @@ namespace ZebraDash
 
         private void UpdateVisual(float nowSec)
         {
-            float t = Mathf.Clamp01((nowSec - spawnTimeSec) / travelTimeSec);
-            float x = Mathf.Lerp(spawnX, hitX, t);
-            float y = ResolvePresentationY(nowSec, t);
+            float normalized = Mathf.Clamp01((nowSec - spawnTimeSec) / travelTimeSec);
+            float eased = EvaluateTravelEase(normalized);
+            float x = Mathf.Lerp(spawnX, hitX, eased);
+            float y = ResolvePresentationY(nowSec, eased, normalized);
+            float postHitSec = Mathf.Max(0f, nowSec - hitTimeSec);
 
             if (IsHold())
             {
@@ -134,13 +152,15 @@ namespace ZebraDash
             else if (IsFakeout())
             {
                 y += 0.06f * Mathf.Sin((nowSec * 4.4f) + wobbleSeed);
-                transform.localScale = new Vector3(holdWidth, Mathf.Lerp(0.78f, 1.05f, t), 1f);
+                transform.localScale = new Vector3(holdWidth, Mathf.Lerp(0.78f, 1.05f, eased), 1f);
+                x = ResolvePostHitX(x, postHitSec, 1.10f);
             }
             else
             {
                 y += 0.08f * Mathf.Sin((nowSec * 8f) + wobbleSeed);
                 float pulse = 1f + (0.22f * (1f - Mathf.Clamp01(Mathf.Abs(nowSec - hitTimeSec) / 0.24f)) * intensity);
                 transform.localScale = new Vector3(holdWidth * pulse, baseScaleY * pulse, 1f);
+                x = ResolvePostHitX(x, postHitSec, 1.15f);
             }
 
             transform.position = new Vector3(x, y, 0f);
@@ -149,37 +169,77 @@ namespace ZebraDash
             {
                 hitLineVerified = true;
                 float hitError = Mathf.Abs(transform.position.x - hitX);
-                if (hitError > 0.06f)
+                if (hitError > 0.09f)
                 {
                     Debug.LogWarning($"[ZebraDash] Hitline drift {hitError:F3} ({kind}/{presentation}) at {hitTimeSec:F3}s");
                 }
             }
         }
 
-        private float ResolvePresentationY(float nowSec, float t)
+        private float ResolvePostHitX(float currentX, float postHitSec, float speedFactor)
+        {
+            if (postHitSec <= 0f)
+            {
+                return currentX;
+            }
+
+            // Ramp the post-hit exit movement to preserve exact hitline timing.
+            float ramp = Mathf.Clamp01(postHitSec / 0.08f);
+            float rampEase = ramp * ramp * (3f - (2f * ramp));
+            float distance = postHitSec * travelSpeedX * speedFactor * rampEase;
+            return hitX - distance;
+        }
+
+        private float ResolvePresentationY(float nowSec, float eased, float raw)
         {
             float y = laneY;
             if (string.Equals(presentation, GameplayPresentationKinds.Diagonal, System.StringComparison.OrdinalIgnoreCase))
             {
-                y += Mathf.Lerp(presentationYOffset, 0f, t);
+                y += Mathf.Lerp(presentationYOffset, 0f, eased);
             }
             else if (string.Equals(presentation, GameplayPresentationKinds.Drop, System.StringComparison.OrdinalIgnoreCase))
             {
-                float eased = 1f - Mathf.Pow(1f - t, 2f);
-                y += Mathf.Lerp(presentationYOffset, 0f, eased);
+                float dropEase = 1f - Mathf.Pow(1f - eased, 1.8f);
+                y += Mathf.Lerp(presentationYOffset, 0f, dropEase);
+            }
+            else if (string.Equals(presentation, GameplayPresentationKinds.Rise, System.StringComparison.OrdinalIgnoreCase))
+            {
+                float riseEase = eased * eased;
+                y -= Mathf.Lerp(presentationYOffset * 0.85f, 0f, riseEase);
             }
             else if (string.Equals(presentation, GameplayPresentationKinds.Pop, System.StringComparison.OrdinalIgnoreCase))
             {
-                y -= Mathf.Lerp(presentationYOffset * 0.55f, 0f, t);
+                float popEase = Mathf.SmoothStep(0f, 1f, raw);
+                y -= Mathf.Lerp(presentationYOffset * 0.55f, 0f, popEase);
             }
 
             // Always snap the lane at hit time to keep gameplay deterministic.
-            if (Mathf.Abs(nowSec - hitTimeSec) <= 0.0005f || t >= 0.999f)
+            if (Mathf.Abs(nowSec - hitTimeSec) <= 0.0005f || raw >= 0.999f)
             {
                 return laneY;
             }
 
             return y;
+        }
+
+        private float EvaluateTravelEase(float u)
+        {
+            // Base cubic in-out keeps motion deterministic and readable at varying FPS.
+            float eased = u < 0.5f
+                ? 4f * u * u * u
+                : 1f - (Mathf.Pow(-2f * u + 2f, 3f) * 0.5f);
+
+            if (string.Equals(presentation, GameplayPresentationKinds.Drop, System.StringComparison.OrdinalIgnoreCase))
+            {
+                return Mathf.Clamp01(Mathf.Lerp(eased, 1f - Mathf.Pow(1f - u, 2.2f), 0.45f));
+            }
+
+            if (string.Equals(presentation, GameplayPresentationKinds.Pop, System.StringComparison.OrdinalIgnoreCase))
+            {
+                return Mathf.Clamp01(Mathf.Lerp(eased, Mathf.SmoothStep(0f, 1f, u), 0.35f));
+            }
+
+            return eased;
         }
 
         private static float ResolvePresentationYOffset(string presentationKind, float eventIntensity, int seed)
@@ -201,18 +261,13 @@ namespace ZebraDash
                 return;
             }
 
-            GameObject go = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            go.name = "HoldTelegraph";
-            go.transform.SetParent(transform, false);
+            GameObject go = RuntimeSpriteFactory.Create(
+                "HoldTelegraph",
+                transform,
+                new Vector3(0f, 0.85f, -0.05f),
+                new Vector3(holdWidth, 0.12f, 1f),
+                sortingOrder: 16);
             go.transform.localRotation = Quaternion.identity;
-            go.transform.localPosition = new Vector3(0f, 0.85f, -0.05f);
-            go.transform.localScale = new Vector3(holdWidth, 0.12f, 1f);
-
-            Collider collider = go.GetComponent<Collider>();
-            if (collider != null)
-            {
-                Destroy(collider);
-            }
 
             holdTelegraphRenderer = go.GetComponent<Renderer>();
             if (holdTelegraphRenderer != null)

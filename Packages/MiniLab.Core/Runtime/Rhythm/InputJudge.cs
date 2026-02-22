@@ -238,7 +238,7 @@ namespace MiniLab.Core.Rhythm
                 return EmptyTapDecision.Ignored;
             }
 
-            float expectedHazardWindowSec = Math.Max(beatSec * 0.35f, 0.20f);
+            float expectedHazardWindowSec = Clamp(beatSec * 0.85f, 0.22f, 0.42f);
             float deltaToNext = nextHazardHitTimeSec.Value - inputTimeSec;
             if (deltaToNext >= 0f && deltaToNext <= expectedHazardWindowSec)
             {

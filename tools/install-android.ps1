@@ -1,5 +1,7 @@
 param(
-    [string]$ApkPath = "BuildArtifacts/zebradash-dev.apk"
+    [string]$ApkPath = "BuildArtifacts/zebradash-dev.apk",
+    [switch]$Launch,
+    [string]$PackageName = "com.zebratank.zebradash"
 )
 
 Set-StrictMode -Version Latest
@@ -74,3 +76,11 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "APK installed successfully."
+
+if ($Launch) {
+    Write-Host "Launching app package: $PackageName"
+    & $adbPath shell monkey -p $PackageName -c android.intent.category.LAUNCHER 1
+    if ($LASTEXITCODE -ne 0) {
+        throw "adb launch failed with exit code $LASTEXITCODE"
+    }
+}
