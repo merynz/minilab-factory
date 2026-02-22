@@ -31,6 +31,7 @@ namespace ZebraDash
         private readonly List<float> syncDeltas = new List<float>(16);
         private float offsetSlider;
         private string lastJudgement = "-";
+        private string currentSectionState = "Active";
         private int combo;
         private bool audioLoaded;
 
@@ -140,6 +141,8 @@ namespace ZebraDash
             {
                 RegisterSyncTap();
             }
+
+            currentSectionState = ResolveSectionState(beatClock.SongTimeSec);
         }
 
         private void RegisterSyncTap()
@@ -209,16 +212,17 @@ namespace ZebraDash
             GUI.Label(new Rect(20, 40, 490, 20), $"Track: {activeTrack.trackId}");
             GUI.Label(new Rect(20, 60, 490, 20), $"BPM: {beatMap.bpm:F2}  Offset: {offsetSlider:F3}s");
             GUI.Label(new Rect(20, 80, 490, 20), $"Time: {beatClock.SongTimeSec:F2}s Beat: {beatClock.BeatFloat:F2} Bar: {beatClock.BarIndex + 1}");
-            GUI.Label(new Rect(20, 100, 490, 20), $"Last Judge: {lastJudgement}  Combo: {combo}");
+            GUI.Label(new Rect(20, 100, 490, 20), $"Section: {currentSectionState}  Last Judge: {lastJudgement}  Combo: {combo}");
+            GUI.Label(new Rect(20, 118, 490, 20), $"Offset(ms): {offsetSlider * 1000f:F1}");
 
-            GUI.Label(new Rect(20, 122, 90, 20), "Offset");
-            offsetSlider = GUI.HorizontalSlider(new Rect(72, 128, 210, 16), offsetSlider, -0.5f, 0.5f);
-            if (GUI.Button(new Rect(290, 122, 90, 24), "Tap->Sync"))
+            GUI.Label(new Rect(20, 138, 90, 20), "Offset");
+            offsetSlider = GUI.HorizontalSlider(new Rect(72, 144, 210, 16), offsetSlider, -0.5f, 0.5f);
+            if (GUI.Button(new Rect(290, 138, 90, 24), "Tap->Sync"))
             {
                 ApplyTapSyncOffset();
             }
 
-            if (GUI.Button(new Rect(390, 122, 120, 24), "Save Catalog"))
+            if (GUI.Button(new Rect(390, 138, 120, 24), "Save Catalog"))
             {
                 SaveOffset();
             }
@@ -231,6 +235,7 @@ namespace ZebraDash
         private void DrawTimeline(Rect rect)
         {
             float duration = Mathf.Max(1f, activeTrack.durationSec > 0f ? activeTrack.durationSec : 60f);
+            DrawBeatGrid(rect, duration);
 
             if (beatMap.sections != null)
             {
@@ -239,7 +244,7 @@ namespace ZebraDash
                     BeatSection section = beatMap.sections[i];
                     float x0 = rect.x + Mathf.Clamp01(section.startSec / duration) * rect.width;
                     float x1 = rect.x + Mathf.Clamp01(section.endSec / duration) * rect.width;
-                    Color c = section.type == BeatSectionType.Rest ? new Color(0.25f, 0.45f, 0.75f, 0.8f) : new Color(0.75f, 0.35f, 0.2f, 0.85f);
+                    Color c = section.IsRest ? new Color(0.25f, 0.45f, 0.75f, 0.8f) : new Color(0.75f, 0.35f, 0.2f, 0.85f);
                     DrawSolidRect(new Rect(x0, rect.y + 2, Mathf.Max(1f, x1 - x0), rect.height - 4), c);
                 }
             }
@@ -266,6 +271,44 @@ namespace ZebraDash
 
             float playheadX = rect.x + Mathf.Clamp01(beatClock.SongTimeSec / duration) * rect.width;
             DrawSolidRect(new Rect(playheadX, rect.y, 2f, rect.height), Color.white);
+        }
+
+        private void DrawBeatGrid(Rect rect, float duration)
+        {
+            if (beatMap == null || beatMap.bpm <= 0.01f)
+            {
+                return;
+            }
+
+            float spb = 60f / beatMap.bpm;
+            int beats = Mathf.Clamp(Mathf.CeilToInt(duration / spb), 0, 1024);
+            for (int beat = 0; beat <= beats; beat++)
+            {
+                float t = beat * spb;
+                float x = rect.x + Mathf.Clamp01(t / duration) * rect.width;
+                bool isBar = (beat % 4) == 0;
+                Color c = isBar ? new Color(1f, 1f, 1f, 0.25f) : new Color(1f, 1f, 1f, 0.1f);
+                DrawSolidRect(new Rect(x, rect.y + 1, 1f, rect.height - 2), c);
+            }
+        }
+
+        private string ResolveSectionState(float timeSec)
+        {
+            if (beatMap?.sections == null || beatMap.sections.Length == 0)
+            {
+                return "Unknown";
+            }
+
+            for (int i = 0; i < beatMap.sections.Length; i++)
+            {
+                BeatSection section = beatMap.sections[i];
+                if (timeSec >= section.startSec && timeSec < section.endSec)
+                {
+                    return string.IsNullOrWhiteSpace(section.type) ? "Active" : section.type;
+                }
+            }
+
+            return "Active";
         }
 
         private static Texture2D solidTexture;

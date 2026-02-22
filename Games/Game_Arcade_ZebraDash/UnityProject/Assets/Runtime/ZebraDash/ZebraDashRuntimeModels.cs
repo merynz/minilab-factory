@@ -35,7 +35,7 @@ namespace ZebraDash
 
         public static string ContentRoot => Path.Combine(GameRoot, "Content");
 
-        public static string CatalogPath => Path.Combine(ContentRoot, "music_catalog.json");
+        public static string CatalogPath => Path.Combine(ContentRoot, "Levels", "music_catalog.json");
 
         public static string ResolvePath(string relativeOrAbsolute)
         {

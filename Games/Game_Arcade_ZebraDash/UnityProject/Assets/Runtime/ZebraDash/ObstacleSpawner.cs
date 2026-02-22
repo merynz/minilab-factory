@@ -16,6 +16,7 @@ namespace ZebraDash
         private BeatMap beatMap;
         private int tapIndex;
         private int holdIndex;
+        private int pulseIndex;
         private readonly List<BreathGapEvent> breathGaps = new List<BreathGapEvent>();
 
         public void Configure(BeatMap map)
@@ -23,6 +24,7 @@ namespace ZebraDash
             beatMap = map ?? new BeatMap();
             tapIndex = 0;
             holdIndex = 0;
+            pulseIndex = 0;
             breathGaps.Clear();
             if (beatMap.breathGaps != null)
             {
@@ -39,6 +41,16 @@ namespace ZebraDash
 
             float songTime = beatClock.SongTimeSec;
             float threshold = songTime + spawnAheadSeconds;
+            UpdateSectionState(songTime);
+
+            while (beatMap.visualPulses != null && pulseIndex < beatMap.visualPulses.Length && beatMap.visualPulses[pulseIndex].timeSec <= songTime)
+            {
+                VisualPulseEvent pulse = beatMap.visualPulses[pulseIndex++];
+                if (levelRunner != null)
+                {
+                    levelRunner.TriggerAccentPulse(pulse.strength);
+                }
+            }
 
             while (beatMap.tapEvents != null && tapIndex < beatMap.tapEvents.Length && beatMap.tapEvents[tapIndex].timeSec <= threshold)
             {
@@ -61,6 +73,27 @@ namespace ZebraDash
 
                 SpawnHold(hold);
             }
+        }
+
+        private void UpdateSectionState(float timeSec)
+        {
+            if (levelRunner == null || beatMap?.sections == null)
+            {
+                return;
+            }
+
+            bool isRest = false;
+            for (int i = 0; i < beatMap.sections.Length; i++)
+            {
+                BeatSection section = beatMap.sections[i];
+                if (timeSec >= section.startSec && timeSec < section.endSec)
+                {
+                    isRest = section.IsRest;
+                    break;
+                }
+            }
+
+            levelRunner.SetRestSection(isRest);
         }
 
         private bool IsInsideBreathGap(float timeSec)

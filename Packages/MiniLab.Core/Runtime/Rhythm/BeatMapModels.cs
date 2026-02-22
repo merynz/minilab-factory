@@ -18,18 +18,14 @@ namespace MiniLab.Core.Rhythm
         public BreathGapEvent[] breathGaps = Array.Empty<BreathGapEvent>();
     }
 
-    public enum BeatSectionType
-    {
-        Rest = 0,
-        Active = 1
-    }
-
     [Serializable]
     public sealed class BeatSection
     {
-        public BeatSectionType type = BeatSectionType.Active;
+        public string type = "Active";
         public float startSec;
         public float endSec;
+
+        public bool IsRest => string.Equals(type, "Rest", StringComparison.OrdinalIgnoreCase);
     }
 
     [Serializable]

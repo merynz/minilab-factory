@@ -512,7 +512,27 @@ foreach ($t in $requiredTracks) {
 }
 
 if ($CopyFromZip -or $missing.Count -gt 0) {
-    Import-RequiredTracks -ZipPath $SourceZip -TargetAudioRoot $AudioRoot
+    if (Test-Path $SourceZip) {
+        Import-RequiredTracks -ZipPath $SourceZip -TargetAudioRoot $AudioRoot
+    } else {
+        Write-Host "SKIP: required WAV files are missing and source zip was not found: $SourceZip"
+        Write-Host "Expected local files under: $AudioRoot"
+        exit 0
+    }
+}
+
+$stillMissing = @()
+foreach ($t in $requiredTracks) {
+    $candidate = Join-Path $AudioRoot $t.Name
+    if (!(Test-Path $candidate)) {
+        $stillMissing += $t.Name
+    }
+}
+
+if ($stillMissing.Count -gt 0) {
+    Write-Host "SKIP: required WAV files are missing: $($stillMissing -join ', ')"
+    Write-Host "Expected local files under: $AudioRoot"
+    exit 0
 }
 
 $catalogTracks = New-Object System.Collections.Generic.List[object]
@@ -554,6 +574,6 @@ for ($i = 0; $i -lt $requiredTracks.Count; $i++) {
 }
 
 $catalog = [pscustomobject]@{ tracks = $catalogTracks.ToArray() }
-$catalogPath = Join-Path $contentRoot "music_catalog.json"
+$catalogPath = Join-Path $levelsRoot "music_catalog.json"
 $catalog | ConvertTo-Json -Depth 8 | Set-Content -Path $catalogPath
 Write-Host "Generated: $catalogPath"

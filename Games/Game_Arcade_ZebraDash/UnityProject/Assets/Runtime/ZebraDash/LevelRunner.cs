@@ -8,7 +8,14 @@ namespace ZebraDash
         [SerializeField] private Transform playerTransform;
         [SerializeField] private Transform worldRoot;
         [SerializeField] private float worldScrollSpeed = 7f;
+        [SerializeField] private float restScrollMultiplier = 0.85f;
+        [SerializeField] private float accentShiftMagnitude = 0.45f;
+        [SerializeField] private float accentRecoverySpeed = 2.5f;
         [SerializeField] private bool runScrolling = true;
+
+        private bool isRestSection;
+        private float accentOffsetX;
+        private float previousAccentOffsetX;
 
         private void Awake()
         {
@@ -30,7 +37,16 @@ namespace ZebraDash
         {
             if (runScrolling && worldRoot != null)
             {
-                worldRoot.position += Vector3.left * (worldScrollSpeed * Time.deltaTime);
+                float speedMul = isRestSection ? restScrollMultiplier : 1f;
+                worldRoot.position += Vector3.left * (worldScrollSpeed * speedMul * Time.deltaTime);
+                accentOffsetX = Mathf.MoveTowards(accentOffsetX, 0f, accentRecoverySpeed * Time.deltaTime);
+                float accentDelta = accentOffsetX - previousAccentOffsetX;
+                if (Mathf.Abs(accentDelta) > 0.0001f)
+                {
+                    worldRoot.position += Vector3.right * accentDelta;
+                }
+
+                previousAccentOffsetX = accentOffsetX;
             }
         }
 
@@ -54,6 +70,17 @@ namespace ZebraDash
         public void SetScrolling(bool enabled)
         {
             runScrolling = enabled;
+        }
+
+        public void SetRestSection(bool isRest)
+        {
+            isRestSection = isRest;
+        }
+
+        public void TriggerAccentPulse(float strength)
+        {
+            float pulse = Mathf.Clamp(strength, 0.1f, 2f) * accentShiftMagnitude;
+            accentOffsetX = Mathf.Clamp(accentOffsetX + pulse, -accentShiftMagnitude * 2f, accentShiftMagnitude * 2f);
         }
     }
 }
