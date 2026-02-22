@@ -1,0 +1,17 @@
+<linker>
+  <assembly fullname="Assembly-CSharp">
+    <type fullname="ZebraDash.BeatmapRuntimeBootstrap" preserve="all" />
+    <type fullname="ZebraDash.BeatmapWorkbenchController" preserve="all" />
+    <type fullname="ZebraDash.LevelRunner" preserve="all" />
+    <type fullname="ZebraDash.MusicCatalog" preserve="all" />
+    <type fullname="ZebraDash.MusicTrackEntry" preserve="all" />
+    <type fullname="ZebraDash.MovingObstacle" preserve="all" />
+    <type fullname="ZebraDash.ObstacleKinematics" preserve="all" />
+    <type fullname="ZebraDash.ObstacleSpawner" preserve="all" />
+    <type fullname="ZebraDash.PlayerController" preserve="all" />
+    <type fullname="ZebraDash.PrefabRegistry" preserve="all" />
+    <type fullname="ZebraDash.ZebraDashPaths" preserve="all" />
+    <type fullname="ZebraDash.ZebraDashFlowController" preserve="all" />
+    <type fullname="ZebraDash.ZebraDashCatalogIo" preserve="all" />
+  </assembly>
+</linker>

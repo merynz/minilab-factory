@@ -17,6 +17,7 @@ namespace ZebraDash
         private readonly List<SpawnDirective> directives = new List<SpawnDirective>(1024);
         private readonly List<ObstacleKinematics> active = new List<ObstacleKinematics>(128);
         private readonly Stack<ObstacleKinematics> pool = new Stack<ObstacleKinematics>(128);
+        private static Material cachedObstacleMaterial;
 
         private int spawnIndex;
 
@@ -157,7 +158,15 @@ namespace ZebraDash
             Renderer renderer = go.GetComponent<Renderer>();
             if (renderer != null)
             {
-                renderer.material.color = new Color(0.16f, 0.9f, 0.95f, 1f);
+                Material material = GetObstacleMaterial();
+                if (material != null)
+                {
+                    renderer.sharedMaterial = material;
+                }
+                else
+                {
+                    renderer.material.color = new Color(0.16f, 0.9f, 0.95f, 1f);
+                }
             }
 
             ObstacleKinematics obstacle = go.GetComponent<ObstacleKinematics>();
@@ -183,6 +192,31 @@ namespace ZebraDash
             }
 
             return 1.25f;
+        }
+
+        private static Material GetObstacleMaterial()
+        {
+            if (cachedObstacleMaterial != null)
+            {
+                return cachedObstacleMaterial;
+            }
+
+            Shader shader = Shader.Find("Unlit/Color");
+            if (shader == null)
+            {
+                shader = Shader.Find("Sprites/Default");
+            }
+
+            if (shader == null)
+            {
+                return null;
+            }
+
+            cachedObstacleMaterial = new Material(shader)
+            {
+                color = new Color(0.16f, 0.9f, 0.95f, 1f)
+            };
+            return cachedObstacleMaterial;
         }
     }
 }

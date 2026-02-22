@@ -3,12 +3,14 @@ using System.Collections;
 using System.Collections.Generic;
 using MiniLab.Core.Rhythm;
 using UnityEngine;
+using UnityEngine.Scripting;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
 
 namespace ZebraDash
 {
+    [Preserve]
     public sealed class ZebraDashFlowController : MonoBehaviour
     {
         private const string SceneBootstrapLegacy = "Bootstrap";
@@ -39,6 +41,7 @@ namespace ZebraDash
 
         private readonly List<RectTransform> parallaxLayers = new List<RectTransform>();
         private readonly List<float> parallaxSpeeds = new List<float>();
+        private static Material cachedPlayerMaterial;
 
         private GameObject runtimeRoot;
         private GameObject playerObject;
@@ -119,6 +122,7 @@ namespace ZebraDash
             StartCoroutine(LoadCatalogIfNeeded());
             // sceneLoaded is not fired for the initial scene at app launch.
             OnSceneLoaded(SceneManager.GetActiveScene(), LoadSceneMode.Single);
+            Debug.Log("[ZebraDashFlow] Start called. Initial scene processed.");
         }
 
         private void Update()
@@ -205,6 +209,7 @@ namespace ZebraDash
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            Debug.Log($"[ZebraDashFlow] OnSceneLoaded: {scene.name} ({mode})");
             CleanupRuntimeSceneObjects();
             EnsureCanvasAndEventSystem();
 
@@ -297,8 +302,8 @@ namespace ZebraDash
 
         private void BuildGameplay()
         {
-            SetBackdrop(new Color(0.05f, 0.07f, 0.11f, 1f));
-            BuildParallaxBackground();
+            parallaxLayers.Clear();
+            parallaxSpeeds.Clear();
 
             Camera camera = Camera.main;
             if (camera == null)
@@ -312,12 +317,19 @@ namespace ZebraDash
 
             camera.orthographic = true;
             camera.orthographicSize = 5f;
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(0.06f, 0.10f, 0.17f, 1f);
 
             GameObject worldRoot = new GameObject("WorldRoot");
             playerObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
             playerObject.name = "Player";
             playerObject.transform.position = new Vector3(-4f, -1.2f, 0f);
             playerObject.transform.localScale = new Vector3(0.7f, 0.7f, 1f);
+            Renderer playerRenderer = playerObject.GetComponent<Renderer>();
+            if (playerRenderer != null)
+            {
+                playerRenderer.sharedMaterial = GetPlayerMaterial();
+            }
 
             runtimeRoot = new GameObject("ZebraDashRuntimeRoot");
             audioSource = runtimeRoot.AddComponent<AudioSource>();
@@ -556,6 +568,7 @@ namespace ZebraDash
 
         private void LoadScene(string sceneName)
         {
+            Debug.Log($"[ZebraDashFlow] LoadScene request: {sceneName}");
             if (Application.CanStreamedLevelBeLoaded(sceneName))
             {
                 SceneManager.LoadScene(sceneName);
@@ -769,6 +782,31 @@ namespace ZebraDash
 #else
             Application.Quit();
 #endif
+        }
+
+        private static Material GetPlayerMaterial()
+        {
+            if (cachedPlayerMaterial != null)
+            {
+                return cachedPlayerMaterial;
+            }
+
+            Shader shader = Shader.Find("Unlit/Color");
+            if (shader == null)
+            {
+                shader = Shader.Find("Sprites/Default");
+            }
+
+            if (shader == null)
+            {
+                return null;
+            }
+
+            cachedPlayerMaterial = new Material(shader)
+            {
+                color = new Color(0.95f, 0.96f, 0.98f, 1f)
+            };
+            return cachedPlayerMaterial;
         }
     }
 }
