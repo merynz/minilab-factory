@@ -2,7 +2,7 @@
 
 - Repo: https://github.com/merynz/minilab-factory
 - PR: https://github.com/merynz/minilab-factory/pull/1
-- Commit: `<to-be-updated-after-push>`
+- Commit: `see latest PR head commit`
 - Unity detected version: `6000.2.6f2 (C:\Program Files\Unity\Hub\Editor\6000.2.6f2\Editor\Unity.exe)`
 
 ## PASS / FAIL / SKIP
