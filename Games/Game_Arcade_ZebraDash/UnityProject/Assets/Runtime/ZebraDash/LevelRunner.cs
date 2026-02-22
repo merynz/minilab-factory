@@ -553,7 +553,7 @@ namespace ZebraDash
                 int lane = Mathf.Clamp(evt.lane, 0, 1);
                 if (string.Equals(evt.kind, GameplayPatternKinds.HoldSlide, StringComparison.OrdinalIgnoreCase))
                 {
-                    float start = hazard.HitTimeSec - collisionWindowSec;
+                    float start = hazard.HitTimeSec;
                     float end = hazard.EndTimeSec + collisionWindowSec;
                     if (now < start)
                     {
@@ -578,14 +578,13 @@ namespace ZebraDash
                     continue;
                 }
 
-                float hitStart = hazard.HitTimeSec - collisionWindowSec;
                 float hitEnd = hazard.HitTimeSec + collisionWindowSec;
-                if (now < hitStart)
+                if (now < hazard.HitTimeSec)
                 {
                     continue;
                 }
 
-                if (now >= hitStart && now <= hitEnd)
+                if (now <= hitEnd)
                 {
                     if (playerController.LaneIndex == lane)
                     {
