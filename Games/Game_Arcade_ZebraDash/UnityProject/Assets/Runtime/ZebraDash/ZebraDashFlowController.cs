@@ -117,6 +117,8 @@ namespace ZebraDash
         private void Start()
         {
             StartCoroutine(LoadCatalogIfNeeded());
+            // sceneLoaded is not fired for the initial scene at app launch.
+            OnSceneLoaded(SceneManager.GetActiveScene(), LoadSceneMode.Single);
         }
 
         private void Update()
