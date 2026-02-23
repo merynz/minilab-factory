@@ -26,6 +26,7 @@ namespace ZebraDash
             public GameplayPatternEvent PatternEvent;
             public float SpawnTimeSec;
             public float TravelTimeSec;
+            public float TelegraphLeadSec;
             public float HitTimeSec;
             public float EndTimeSec;
             public int Seed;
@@ -55,6 +56,7 @@ namespace ZebraDash
                 return;
             }
 
+            float beatSec = levelRunner != null ? Mathf.Max(0.0001f, levelRunner.BeatSec) : 0.5f;
             for (int i = 0; i < pattern.events.Length; i++)
             {
                 GameplayPatternEvent evt = pattern.events[i];
@@ -63,7 +65,8 @@ namespace ZebraDash
                     continue;
                 }
 
-                float travel = ResolveTravelTime(evt);
+                float travel = ResolveTravelTime(evt, beatSec);
+                float telegraphLead = ResolveTelegraphLead(evt, beatSec);
                 float hitTime = evt.hitTimeSec;
                 float endTime = Mathf.Max(evt.endTimeSec, hitTime);
 
@@ -71,6 +74,7 @@ namespace ZebraDash
                 {
                     PatternEvent = evt,
                     TravelTimeSec = travel,
+                    TelegraphLeadSec = telegraphLead,
                     HitTimeSec = hitTime,
                     EndTimeSec = endTime,
                     SpawnTimeSec = hitTime - travel,
@@ -133,7 +137,8 @@ namespace ZebraDash
             float laneY = lane == 0 ? lowerLaneY : upperLaneY;
             obstacle.Configure(
                 eventKind: patternEvent.kind,
-                presentationKind: patternEvent.presentation,
+                archetypeName: patternEvent.archetype,
+                presentationKind: ObstacleSpecs.ResolvePresentation(patternEvent),
                 lane: lane,
                 spawnTime: directive.SpawnTimeSec,
                 hitTime: directive.HitTimeSec,
@@ -233,21 +238,14 @@ namespace ZebraDash
                 || string.Equals(kind, GameplayPatternKinds.Fakeout, StringComparison.OrdinalIgnoreCase);
         }
 
-        private float ResolveTravelTime(GameplayPatternEvent evt)
+        private float ResolveTravelTime(GameplayPatternEvent evt, float beatSec)
         {
-            float beatSec = levelRunner != null ? Mathf.Max(0.0001f, levelRunner.BeatSec) : 0.5f;
-            float minVisibleSec = Mathf.Clamp(1.60f * beatSec, 0.82f, 1.25f);
-            if (evt != null && evt.travelTimeSec > 0.01f)
-            {
-                return Mathf.Max(evt.travelTimeSec, minVisibleSec);
-            }
+            return ObstacleSpecs.ResolveTravelSec(evt, beatSec);
+        }
 
-            if (evt != null && string.Equals(evt.kind, GameplayPatternKinds.HoldSlide, StringComparison.OrdinalIgnoreCase))
-            {
-                return Mathf.Max(1.55f, minVisibleSec);
-            }
-
-            return Mathf.Max(1.35f, minVisibleSec);
+        private static float ResolveTelegraphLead(GameplayPatternEvent evt, float beatSec)
+        {
+            return ObstacleSpecs.ResolveTelegraphLeadSec(evt, beatSec);
         }
 
         private void SyncAnchorsWithRunner()

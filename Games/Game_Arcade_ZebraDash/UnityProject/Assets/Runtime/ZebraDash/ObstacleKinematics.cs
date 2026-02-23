@@ -23,8 +23,12 @@ namespace ZebraDash
         private float intensity;
         private float wobbleSeed;
         private string kind = GameplayPatternKinds.Jump;
+        private string archetype = GameplayArchetypes.LaneBlock;
         private string presentation = GameplayPresentationKinds.Straight;
         private float presentationYOffset;
+        private float diagonalDxMax;
+        private float tetherSwayAmp;
+        private float tetherSwayFreq;
         private float holdWidth;
         private float baseScaleY = 1f;
         private float travelSpeedX;
@@ -52,6 +56,7 @@ namespace ZebraDash
 
         public void Configure(
             string eventKind,
+            string archetypeName,
             string presentationKind,
             int lane,
             float spawnTime,
@@ -66,7 +71,9 @@ namespace ZebraDash
             int seed)
         {
             kind = string.IsNullOrWhiteSpace(eventKind) ? GameplayPatternKinds.Jump : eventKind;
-            presentation = string.IsNullOrWhiteSpace(presentationKind) ? GameplayPresentationKinds.Straight : presentationKind;
+            archetype = string.IsNullOrWhiteSpace(archetypeName) ? GameplayArchetypes.LaneBlock : archetypeName;
+            ObstacleSpec spec = ObstacleSpecs.Resolve(archetype);
+            presentation = string.IsNullOrWhiteSpace(presentationKind) ? spec.DefaultStyle : presentationKind;
             Lane = lane;
             spawnTimeSec = spawnTime;
             hitTimeSec = hitTime;
@@ -79,10 +86,13 @@ namespace ZebraDash
             travelSpeedX = Mathf.Abs(spawnX - hitX) / travelTimeSec;
             intensity = Mathf.Clamp01(eventIntensity <= 0f ? 0.6f : eventIntensity);
             wobbleSeed = seed * 0.173f;
+            diagonalDxMax = spec.DiagonalDxMax;
+            tetherSwayAmp = spec.TetherSwayAmp;
+            tetherSwayFreq = spec.TetherSwayFreq;
             presentationYOffset = ResolvePresentationYOffset(presentation, intensity, seed);
             hitLineVerified = false;
             initialized = true;
-            postHitSec = Mathf.Clamp(0.20f * this.beatSec, 0.08f, 0.18f);
+            postHitSec = ObstacleSpecs.ResolvePostHitSec(archetype, this.beatSec);
             despawnAtSec = Mathf.Max(endTimeSec, hitTimeSec) + postHitSec;
             lifecycleState = LifecycleState.Spawned;
 
@@ -229,7 +239,7 @@ namespace ZebraDash
         private void UpdateVisual(float nowSec)
         {
             float normalized = Mathf.Clamp01((nowSec - spawnTimeSec) / travelTimeSec);
-            float x = ResolveLinearX(nowSec);
+            float x = ResolveLinearX(nowSec, normalized);
             float y = ResolvePresentationY(nowSec, normalized);
 
             if (IsHold())
@@ -268,12 +278,28 @@ namespace ZebraDash
             }
         }
 
-        private float ResolveLinearX(float nowSec)
+        private float ResolveLinearX(float nowSec, float normalized)
         {
             if (nowSec <= hitTimeSec)
             {
-                float u = Mathf.Clamp01((nowSec - spawnTimeSec) / Mathf.Max(0.0001f, travelTimeSec));
-                return Mathf.Lerp(spawnX, hitX, u);
+                float x = Mathf.Lerp(spawnX, hitX, normalized);
+                if (normalized >= 0.999f)
+                {
+                    return hitX;
+                }
+
+                // Presentation flavor only; hit-time invariant stays locked.
+                bool diagonalLike = string.Equals(presentation, GameplayPresentationKinds.Diagonal, System.StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(presentation, GameplayPresentationKinds.Rise, System.StringComparison.OrdinalIgnoreCase);
+                if (!diagonalLike)
+                {
+                    return x;
+                }
+
+                float sign = (Lane & 1) == 0 ? -1f : 1f;
+                float offset = Mathf.Lerp(sign * diagonalDxMax, 0f, normalized);
+                float sway = tetherSwayAmp * Mathf.Sin(((nowSec - spawnTimeSec) * Mathf.PI * 2f * tetherSwayFreq) + wobbleSeed) * (1f - normalized);
+                return x + offset + sway;
             }
 
             float postHitSec = nowSec - hitTimeSec;
@@ -452,7 +478,9 @@ namespace ZebraDash
             if (tetherTelegraph != null && tetherTelegraph.gameObject.activeSelf)
             {
                 Vector3 localEnd = new Vector3(0f, 0f, -0.04f);
-                Vector3 localStart = new Vector3(Mathf.Lerp(-1.2f, -0.4f, normalized), Mathf.Lerp(2.2f, 1.1f, normalized), -0.04f);
+                float startX = Mathf.Lerp(-Mathf.Max(0.45f, diagonalDxMax * 1.6f), -Mathf.Max(0.18f, diagonalDxMax * 0.6f), normalized);
+                float startY = Mathf.Lerp(2.2f, 1.1f, normalized);
+                Vector3 localStart = new Vector3(startX, startY, -0.04f);
                 Vector3 delta = localEnd - localStart;
                 float len = Mathf.Max(0.02f, delta.magnitude);
                 tetherTelegraph.localPosition = localStart + (delta * 0.5f);
@@ -460,14 +488,14 @@ namespace ZebraDash
                 tetherTelegraph.localScale = new Vector3(0.07f, len, 1f);
                 if (tetherTelegraphRenderer != null && tetherTelegraphRenderer.material != null)
                 {
-                    float alpha = Mathf.Clamp01(0.10f + (lead01 * 0.24f));
+                    float alpha = Mathf.Clamp01(0.10f + (lead01 * (0.22f + (tetherSwayAmp * 0.35f))));
                     RenderMaterialUtils.ApplyColor(tetherTelegraphRenderer.material, new Color(0.40f, 0.95f, 1f, alpha));
                 }
             }
 
             if (floorTelegraph != null && floorTelegraph.gameObject.activeSelf)
             {
-                float sweep = Mathf.Sin((nowSec * 12f) + wobbleSeed) * 0.10f;
+                float sweep = Mathf.Sin((nowSec * (10f + (tetherSwayFreq * 0.4f))) + wobbleSeed) * 0.10f;
                 floorTelegraph.localPosition = new Vector3(0f, Mathf.Lerp(-1.6f, -0.1f, normalized) + sweep, -0.04f);
                 floorTelegraph.localScale = new Vector3(Mathf.Lerp(1.75f, 1.05f, normalized), 0.16f, 1f);
                 if (floorTelegraphRenderer != null && floorTelegraphRenderer.material != null)

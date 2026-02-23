@@ -1004,6 +1004,7 @@ namespace ZebraDash
             lane = -1;
             leadSec = float.PositiveInfinity;
             lead01 = 0f;
+            float leadWindowSec = 0f;
             if (obstacleSpawner == null)
             {
                 return false;
@@ -1034,6 +1035,9 @@ namespace ZebraDash
                 {
                     leadSec = lead;
                     lane = Mathf.Clamp(evt.lane, 0, 1);
+                    leadWindowSec = directive.TelegraphLeadSec > 0f
+                        ? directive.TelegraphLeadSec
+                        : ObstacleSpecs.ResolveTelegraphLeadSec(evt, beatGrid.BeatSec);
                 }
             }
 
@@ -1042,7 +1046,7 @@ namespace ZebraDash
                 return false;
             }
 
-            float leadWindowSec = Mathf.Max(0.55f, beatGrid.BeatSec * 1.0f);
+            leadWindowSec = Mathf.Max(0.01f, leadWindowSec);
             lead01 = 1f - Mathf.Clamp01(leadSec / leadWindowSec);
             return leadSec <= leadWindowSec;
         }
@@ -1069,7 +1073,11 @@ namespace ZebraDash
                 }
 
                 string archetype = string.IsNullOrWhiteSpace(evt.archetype) ? GameplayArchetypes.LaneBlock : evt.archetype;
-                preview.Add($"{directive.HitTimeSec:F2}s L{evt.lane} {archetype}");
+                string approach = ObstacleSpecs.ResolvePresentation(evt);
+                float teleLead = directive.TelegraphLeadSec > 0f
+                    ? directive.TelegraphLeadSec
+                    : ObstacleSpecs.ResolveTelegraphLeadSec(evt, beatGrid.BeatSec);
+                preview.Add($"{directive.HitTimeSec:F2}s L{evt.lane} {archetype} tr:{directive.TravelTimeSec:F2} tel:{teleLead:F2} st:{approach}");
                 added++;
             }
 
@@ -1200,11 +1208,12 @@ namespace ZebraDash
                 }
 
                 bool minOk = directive.TravelTimeSec >= minVisibleSec - 0.0001f;
-                string telegraph = string.Equals(evt.kind, GameplayPatternKinds.HoldSlide, StringComparison.OrdinalIgnoreCase)
-                    ? "HoldBand"
-                    : "Pulse";
+                float teleLead = directive.TelegraphLeadSec > 0f
+                    ? directive.TelegraphLeadSec
+                    : ObstacleSpecs.ResolveTelegraphLeadSec(evt, beatSec);
+                ObstacleSpec spec = ObstacleSpecs.Resolve(evt.archetype);
                 string approach = string.IsNullOrWhiteSpace(evt.presentation) ? GameplayPresentationKinds.Straight : evt.presentation;
-                preview.Add($"t:{directive.HitTimeSec:F2} tr:{directive.TravelTimeSec:F2} min:{(minOk ? "ok" : "low")} tele:{telegraph} app:{approach}");
+                preview.Add($"t:{directive.HitTimeSec:F2} L{evt.lane} tr:{directive.TravelTimeSec:F2} tel:{teleLead:F2} min:{(minOk ? "ok" : "low")} app:{approach} rule:{spec.GameplayRule}");
             }
 
             return preview.Count == 0 ? "-" : string.Join(" | ", preview);
