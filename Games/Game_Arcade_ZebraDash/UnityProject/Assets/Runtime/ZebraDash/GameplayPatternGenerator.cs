@@ -35,6 +35,8 @@ namespace ZebraDash
         public const string HoldReleaseGate = "HoldReleaseGate";
         public const string CrossGate = "CrossGate";
         public const string OffbeatSnap = "OffbeatSnap";
+        public const string SpinnerSentinel = "SpinnerSentinel";
+        public const string RisingWall = "RisingWall";
         public const string FakeoutGhost = "FakeoutGhost";
         public const string RestPulse = "RestPulse";
     }
@@ -310,6 +312,7 @@ namespace ZebraDash
                 .OrderBy(e => e.hitTimeSec)
                 .ThenBy(e => e.kind)
                 .ToArray();
+            sorted = ApplyPlayabilityGuards(sorted, beatSec);
             GameplayLanePlanBeat[] lanePlanArray = lanePlanBeats
                 .OrderBy(e => e.beatIndex)
                 .ThenBy(e => e.timeSec)
@@ -666,29 +669,118 @@ namespace ZebraDash
             bool downbeat = (hazard.SlotInBar % 4) == 0;
             bool offbeat = !downbeat;
             bool isDrop = string.Equals(context.SectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase);
+            bool isTransition = string.Equals(context.SectionType, GameplaySectionTypes.Transition, StringComparison.OrdinalIgnoreCase);
+            bool isActive = string.Equals(context.SectionType, GameplaySectionTypes.Active, StringComparison.OrdinalIgnoreCase);
+            int variety = Mathf.Abs((context.BarIndex * 37) + (hazard.BeatInBar * 19) + (hazard.Lane * 11) + Mathf.RoundToInt(hazard.Intensity * 120f));
+            string[] activeCycle =
+            {
+                GameplayArchetypes.LaneBlock,
+                GameplayArchetypes.StreakBreaker,
+                GameplayArchetypes.SpinnerSentinel,
+                GameplayArchetypes.RisingWall,
+                GameplayArchetypes.AlternatorPair,
+                GameplayArchetypes.CrossGate,
+                GameplayArchetypes.HoldLaneLock,
+                GameplayArchetypes.HoldReleaseGate,
+                GameplayArchetypes.AccentCrusher,
+                GameplayArchetypes.OffbeatSnap
+            };
+            string[] dropCycle =
+            {
+                GameplayArchetypes.AccentCrusher,
+                GameplayArchetypes.CrossGate,
+                GameplayArchetypes.AlternatorPair,
+                GameplayArchetypes.HoldReleaseGate,
+                GameplayArchetypes.SpinnerSentinel,
+                GameplayArchetypes.RisingWall,
+                GameplayArchetypes.StreakBreaker,
+                GameplayArchetypes.HoldLaneLock,
+                GameplayArchetypes.LaneBlock,
+                GameplayArchetypes.OffbeatSnap
+            };
+            string[] cycle = isDrop ? dropCycle : activeCycle;
+            if (isTransition)
+            {
+                cycle = new[]
+                {
+                    GameplayArchetypes.LaneBlock,
+                    GameplayArchetypes.AlternatorPair,
+                    GameplayArchetypes.CrossGate,
+                    GameplayArchetypes.StreakBreaker,
+                    GameplayArchetypes.FakeoutGhost,
+                    GameplayArchetypes.HoldLaneLock,
+                    GameplayArchetypes.SpinnerSentinel,
+                    GameplayArchetypes.RisingWall
+                };
+            }
+
+            string cycledArchetype = cycle[variety % cycle.Length];
 
             if (offbeat)
             {
+                if (isDrop)
+                {
+                    int pick = variety % 6;
+                    return pick switch
+                    {
+                        0 => GameplayArchetypes.OffbeatSnap,
+                        1 => GameplayArchetypes.SpinnerSentinel,
+                        2 => GameplayArchetypes.FakeoutGhost,
+                        3 => GameplayArchetypes.RisingWall,
+                        4 => GameplayArchetypes.CrossGate,
+                        _ => GameplayArchetypes.OffbeatSnap
+                    };
+                }
+
+                if (isTransition)
+                {
+                    return (variety % 3) == 0 ? GameplayArchetypes.FakeoutGhost : GameplayArchetypes.OffbeatSnap;
+                }
+
+                if (isActive)
+                {
+                    return (variety % 4) == 0 ? GameplayArchetypes.StreakBreaker : GameplayArchetypes.OffbeatSnap;
+                }
+
                 return GameplayArchetypes.OffbeatSnap;
             }
 
-            if (isDrop && downbeat && hazard.Intensity >= 0.72f)
+            if (isTransition && (variety % 5) == 0)
             {
-                int selector = (context.BarIndex + hazard.BeatInBar + hazard.Lane) % 3;
-                return selector == 0 ? GameplayArchetypes.CrossGate : GameplayArchetypes.AlternatorPair;
+                return GameplayArchetypes.FakeoutGhost;
             }
 
-            if (downbeat && hazard.Intensity >= 0.70f)
+            if (!hazard.RequiresTap && downbeat)
             {
-                return GameplayArchetypes.AccentCrusher;
+                if (cycledArchetype == GameplayArchetypes.HoldReleaseGate || cycledArchetype == GameplayArchetypes.AlternatorPair)
+                {
+                    return GameplayArchetypes.HoldLaneLock;
+                }
+
+                if (cycledArchetype == GameplayArchetypes.CrossGate)
+                {
+                    return GameplayArchetypes.RisingWall;
+                }
+
+                return cycledArchetype;
             }
 
-            if (!hazard.RequiresTap && downbeat && hazard.Intensity >= 0.82f)
+            if (hazard.RequiresTap && downbeat && hazard.Intensity >= 0.68f)
             {
-                return GameplayArchetypes.HoldLaneLock;
+                if (cycledArchetype == GameplayArchetypes.HoldLaneLock)
+                {
+                    return GameplayArchetypes.HoldReleaseGate;
+                }
+
+                return cycledArchetype;
             }
 
-            return GameplayArchetypes.LaneBlock;
+            if (string.Equals(cycledArchetype, GameplayArchetypes.OffbeatSnap, StringComparison.OrdinalIgnoreCase))
+            {
+                return isDrop ? GameplayArchetypes.AccentCrusher : GameplayArchetypes.SpinnerSentinel;
+            }
+
+            return cycledArchetype;
         }
 
         private static List<PlannerBarContext> BuildPlannerBarContexts(
@@ -746,21 +838,38 @@ namespace ZebraDash
 
                 float avgEnergy = energySum / 16f;
                 ResolvePlannerTargets(section.Type, targetStrain, avgEnergy, out int hazardTarget, out int switchTarget);
+                if (bar == 0)
+                {
+                    hazardTarget = Mathf.Min(hazardTarget, 1);
+                    switchTarget = Mathf.Min(switchTarget, 1);
+                }
+                else if (bar == 1 && string.Equals(section.Type, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase))
+                {
+                    hazardTarget = Mathf.Min(hazardTarget, 2);
+                    switchTarget = Mathf.Min(switchTarget, 2);
+                }
                 context.HazardTarget = hazardTarget;
                 context.SwitchTarget = switchTarget;
                 if (string.Equals(section.Type, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase))
                 {
                     context.MaxConsecutiveHazardBeats = 2;
-                    context.MinGapSlots = 1;
-                    context.OffbeatMinRatio = 0f;
+                    context.MinGapSlots = 3;
+                    context.OffbeatMinRatio = 0.08f;
+                    context.OffbeatMaxRatio = 0.30f;
+                }
+                else if (string.Equals(section.Type, GameplaySectionTypes.Transition, StringComparison.OrdinalIgnoreCase))
+                {
+                    context.MaxConsecutiveHazardBeats = 2;
+                    context.MinGapSlots = 3;
+                    context.OffbeatMinRatio = 0.04f;
                     context.OffbeatMaxRatio = 0.18f;
                 }
                 else
                 {
-                    context.MaxConsecutiveHazardBeats = 2;
-                    context.MinGapSlots = 2;
-                    context.OffbeatMinRatio = 0.00f;
-                    context.OffbeatMaxRatio = 0.05f;
+                    context.MaxConsecutiveHazardBeats = 1;
+                    context.MinGapSlots = 4;
+                    context.OffbeatMinRatio = 0.03f;
+                    context.OffbeatMaxRatio = 0.12f;
                 }
 
                 result.Add(context);
@@ -800,13 +909,23 @@ namespace ZebraDash
 
             if (string.Equals(sectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase))
             {
-                hazardTarget = 2;
-                switchTarget = (targetStrain >= 0.84f && avgEnergy >= 0.78f) ? 2 : 1;
+                bool intenseDrop = targetStrain >= 0.82f && avgEnergy >= 0.75f;
+                bool mediumDrop = targetStrain >= 0.70f || avgEnergy >= 0.66f;
+                hazardTarget = intenseDrop ? 3 : (mediumDrop ? 2 : 2);
+                switchTarget = intenseDrop ? 2 : 1;
                 return;
             }
 
-            hazardTarget = 1;
-            switchTarget = (targetStrain >= 0.70f && avgEnergy >= 0.70f) ? 2 : 1;
+            if (string.Equals(sectionType, GameplaySectionTypes.Transition, StringComparison.OrdinalIgnoreCase))
+            {
+                hazardTarget = 1;
+                switchTarget = (targetStrain >= 0.58f || avgEnergy >= 0.56f) ? 2 : 1;
+                return;
+            }
+
+            bool energeticActive = targetStrain >= 0.56f || avgEnergy >= 0.58f;
+            hazardTarget = energeticActive ? 2 : 1;
+            switchTarget = energeticActive ? 2 : 1;
         }
 
         private static bool HasAccentNear(IReadOnlyList<BeatEvent> events, float timeSec, float windowSec)
@@ -873,19 +992,19 @@ namespace ZebraDash
 
             int tieSeed = rng != null ? rng.Next(int.MinValue, int.MaxValue) : 17;
             PlannerBarContext[] phase0 = ClonePlannerBars(phraseBars, allowOffbeat: true, switchReduction: 0, hazardReduction: 0, fallbackStep: "base");
-            if (TryPlanPhrase(phase0, startLane, beamWidth: 12, tieSeed, out decisions))
+            if (TryPlanPhrase(phase0, startLane, beamWidth: 14, tieSeed, out decisions))
             {
                 return true;
             }
 
             PlannerBarContext[] phase1 = ClonePlannerBars(phraseBars, allowOffbeat: false, switchReduction: 0, hazardReduction: 0, fallbackStep: "offbeat_down");
-            if (TryPlanPhrase(phase1, startLane, beamWidth: 12, tieSeed, out decisions))
+            if (TryPlanPhrase(phase1, startLane, beamWidth: 14, tieSeed, out decisions))
             {
                 return true;
             }
 
             PlannerBarContext[] phase2 = ClonePlannerBars(phraseBars, allowOffbeat: false, switchReduction: 1, hazardReduction: 0, fallbackStep: "switch_down");
-            if (TryPlanPhrase(phase2, startLane, beamWidth: 10, tieSeed, out decisions))
+            if (TryPlanPhrase(phase2, startLane, beamWidth: 12, tieSeed, out decisions))
             {
                 return true;
             }
@@ -1096,10 +1215,13 @@ namespace ZebraDash
                 int laneAfter = switchDecision == 1 ? 1 - state.CurrentLane : state.CurrentLane;
                 int onbeatSlot = beatInBar * 4;
                 int offbeatSlot = PickBestOffbeatSlot(bar, beatInBar);
+                bool isDrop = string.Equals(bar.SectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase);
+                bool isTransition = string.Equals(bar.SectionType, GameplaySectionTypes.Transition, StringComparison.OrdinalIgnoreCase);
                 bool allowOffbeatChoice = bar.OffbeatMaxRatio > 0.001f
-                    && switchDecision == 1
-                    && string.Equals(bar.SectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase)
-                    && beatInBar == 2;
+                    && (
+                        (isDrop && bar.HazardTarget >= 3 && switchDecision == 1 && beatInBar >= 1)
+                        || (isTransition && switchDecision == 1 && beatInBar == 2)
+                    );
                 int[] slotOptions = allowOffbeatChoice
                     ? new[] { -1, onbeatSlot, offbeatSlot }
                     : new[] { -1, onbeatSlot };
@@ -1387,29 +1509,39 @@ namespace ZebraDash
                 return GameplayArchetypes.AccentCrusher;
             }
 
-            if (offbeat && roll < (isDrop ? 0.45f : 0.30f))
+            if (offbeat && roll < (isDrop ? 0.20f : 0.12f))
             {
                 return GameplayArchetypes.OffbeatSnap;
             }
 
-            if (isDrop && roll < 0.26f)
+            if (isDrop && roll < 0.20f)
             {
                 return GameplayArchetypes.CrossGate;
             }
 
-            if (isDrop && roll < 0.38f)
+            if (isDrop && roll < 0.30f)
             {
                 return GameplayArchetypes.AlternatorPair;
             }
 
-            if (roll < 0.14f)
+            if (isDrop && roll < 0.36f)
+            {
+                return GameplayArchetypes.SpinnerSentinel;
+            }
+
+            if (roll < 0.08f)
             {
                 return GameplayArchetypes.HoldLaneLock;
             }
 
-            if (roll < 0.21f)
+            if (roll < 0.12f)
             {
                 return GameplayArchetypes.HoldReleaseGate;
+            }
+
+            if (roll < 0.18f)
+            {
+                return GameplayArchetypes.RisingWall;
             }
 
             if (isTransition && roll < 0.30f)
@@ -1439,23 +1571,22 @@ namespace ZebraDash
 
             if (string.Equals(sectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase))
             {
-                float t = Mathf.InverseLerp(0.65f, 0.85f, targetStrain);
-                int baseCount = t >= 0.72f ? 4 : 3;
-                if (t > 0.92f && rng.NextDouble() < 0.20d)
+                float t = Mathf.InverseLerp(0.68f, 0.86f, targetStrain);
+                int baseCount = t >= 0.76f ? 3 : 2;
+                if (rng.NextDouble() < 0.24d)
                 {
-                    return 5;
+                    baseCount = Mathf.Max(2, baseCount - 1);
                 }
 
                 return baseCount;
             }
 
             // Active / transition
-            float activeT = Mathf.InverseLerp(0.35f, 0.60f, targetStrain);
-            int count = activeT >= 0.48f ? 2 : 1;
-            if (string.Equals(sectionType, GameplaySectionTypes.Transition, StringComparison.OrdinalIgnoreCase)
-                && rng.NextDouble() < 0.15d)
+            float activeT = Mathf.InverseLerp(0.42f, 0.64f, targetStrain);
+            int count = activeT >= 0.58f ? 2 : 1;
+            if (string.Equals(sectionType, GameplaySectionTypes.Transition, StringComparison.OrdinalIgnoreCase))
             {
-                count = 2;
+                count = rng.NextDouble() < 0.12d ? 2 : 1;
             }
 
             return count;
@@ -1502,8 +1633,8 @@ namespace ZebraDash
                 EnforceMinGap(mask, 2);
             }
 
-            float minOffbeat = isDrop ? 0.35f : (isTransition ? 0.24f : 0.18f);
-            float maxOffbeat = isDrop ? 0.80f : 0.60f;
+            float minOffbeat = isDrop ? 0.30f : (isTransition ? 0.20f : 0.14f);
+            float maxOffbeat = isDrop ? 0.65f : 0.52f;
             BalanceOffbeatRatio(mask, minOffbeat, maxOffbeat, rng);
             NormalizeMaskCount(mask, targetHits, isDrop ? 2 : 3, rng);
         }
@@ -1762,7 +1893,7 @@ namespace ZebraDash
                     break;
                 case GameplayArchetypes.AlternatorPair:
                     AddJump(output, source.timeSec, lane, section.Type, presetId, archetype, intensity, 1.25f, forcedSourceKind ?? BeatKinds.Tap);
-                    TryAddJump(output, beatMap, source.timeSec + (beatSec * Mathf.Lerp(0.40f, 0.80f, (float)rng.NextDouble())), 1 - lane, section, presetId, archetype, intensity * 0.95f, 1.25f, forcedSourceKind ?? BeatKinds.Tap);
+                    TryAddJump(output, beatMap, source.timeSec + (beatSec * Mathf.Lerp(0.95f, 1.20f, (float)rng.NextDouble())), 1 - lane, section, presetId, archetype, intensity * 0.90f, 1.25f, forcedSourceKind ?? BeatKinds.Tap);
                     break;
                 case GameplayArchetypes.StreakBreaker:
                     AddJump(output, source.timeSec, 1 - lane, section.Type, presetId, archetype, intensity, 1.30f, forcedSourceKind ?? BeatKinds.Tap);
@@ -1774,17 +1905,23 @@ namespace ZebraDash
                 {
                     float holdEnd = ResolveHoldEnd(source, section.EndSec, beatSec, true, rng);
                     AddHold(output, source.timeSec, holdEnd, lane, section.Type, presetId, archetype, Mathf.Max(0.7f, intensity));
-                    float release = Mathf.Min(section.EndSec - 0.02f, holdEnd + (beatSec * Mathf.Lerp(0.25f, 0.50f, (float)rng.NextDouble())));
+                    float release = Mathf.Min(section.EndSec - 0.02f, holdEnd + (beatSec * Mathf.Lerp(0.75f, 1.00f, (float)rng.NextDouble())));
                     TryAddJump(output, beatMap, release, 1 - lane, section, presetId, archetype, intensity, 1.28f, forcedSourceKind ?? BeatKinds.Accent);
                     AddAccentFx(output, release, section.Type, presetId, intensity);
                     break;
                 }
                 case GameplayArchetypes.CrossGate:
                     AddJump(output, source.timeSec, lane, section.Type, presetId, archetype, intensity, 1.32f, forcedSourceKind ?? BeatKinds.Tap);
-                    TryAddJump(output, beatMap, source.timeSec + (beatSec * 0.5f), 1 - lane, section, presetId, archetype, intensity * 0.92f, 1.32f, forcedSourceKind ?? BeatKinds.Tap);
+                    TryAddJump(output, beatMap, source.timeSec + (beatSec * Mathf.Lerp(0.95f, 1.15f, (float)rng.NextDouble())), 1 - lane, section, presetId, archetype, intensity * 0.88f, 1.32f, forcedSourceKind ?? BeatKinds.Tap);
                     break;
                 case GameplayArchetypes.OffbeatSnap:
                     TryAddJump(output, beatMap, QuantizeOffbeat(source.timeSec, beatSec), lane, section, presetId, archetype, intensity, 1.18f, forcedSourceKind ?? BeatKinds.Tap);
+                    break;
+                case GameplayArchetypes.SpinnerSentinel:
+                    AddJump(output, source.timeSec, lane, section.Type, presetId, archetype, Mathf.Max(0.70f, intensity), 1.30f, forcedSourceKind ?? BeatKinds.Tap);
+                    break;
+                case GameplayArchetypes.RisingWall:
+                    AddJump(output, source.timeSec, lane, section.Type, presetId, archetype, Mathf.Max(0.72f, intensity), 1.34f, forcedSourceKind ?? BeatKinds.Tap);
                     break;
                 case GameplayArchetypes.FakeoutGhost:
                     AddFakeout(output, source.timeSec, lane, section.Type, presetId, archetype, intensity);
@@ -2209,33 +2346,33 @@ namespace ZebraDash
         {
             if (string.Equals(sectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase))
             {
-                float t = Mathf.InverseLerp(0.65f, 0.85f, targetStrain);
-                return Mathf.Lerp(3.00f, 3.70f, t);
+                float t = Mathf.InverseLerp(0.68f, 0.86f, targetStrain);
+                return Mathf.Lerp(2.10f, 2.85f, t);
             }
 
             if (string.Equals(sectionType, GameplaySectionTypes.Transition, StringComparison.OrdinalIgnoreCase))
             {
-                float t = Mathf.InverseLerp(0.35f, 0.60f, targetStrain);
-                return Mathf.Lerp(1.00f, 1.60f, t);
+                float t = Mathf.InverseLerp(0.42f, 0.62f, targetStrain);
+                return Mathf.Lerp(0.90f, 1.30f, t);
             }
 
-            float activeT = Mathf.InverseLerp(0.35f, 0.60f, targetStrain);
-            return Mathf.Lerp(1.00f, 1.85f, activeT);
+            float activeT = Mathf.InverseLerp(0.40f, 0.62f, targetStrain);
+            return Mathf.Lerp(0.90f, 1.45f, activeT);
         }
 
         private static float ResolveHazardSpacingSec(string sectionType, float beatSec)
         {
             if (string.Equals(sectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase))
             {
-                return Mathf.Max(0.16f, beatSec * 0.38f);
+                return Mathf.Max(0.30f, beatSec * 0.78f);
             }
 
             if (string.Equals(sectionType, GameplaySectionTypes.Transition, StringComparison.OrdinalIgnoreCase))
             {
-                return Mathf.Max(0.22f, beatSec * 0.58f);
+                return Mathf.Max(0.34f, beatSec * 0.86f);
             }
 
-            return Mathf.Max(0.24f, beatSec * 0.62f);
+            return Mathf.Max(0.38f, beatSec * 0.96f);
         }
 
         private static float ResolveTargetStrain(string sectionType, float currentStrain, float difficulty01, System.Random rng)
@@ -2460,9 +2597,231 @@ namespace ZebraDash
                 GameplayArchetypes.CrossGate => GameplayPresentationKinds.Diagonal,
                 GameplayArchetypes.AccentCrusher => GameplayPresentationKinds.Diagonal,
                 GameplayArchetypes.OffbeatSnap => GameplayPresentationKinds.Pop,
+                GameplayArchetypes.RisingWall => GameplayPresentationKinds.Drop,
+                GameplayArchetypes.SpinnerSentinel => GameplayPresentationKinds.Diagonal,
                 GameplayArchetypes.StreakBreaker => GameplayPresentationKinds.Rise,
                 _ => GameplayPresentationKinds.Straight
             };
+        }
+
+        private static GameplayPatternEvent[] ApplyPlayabilityGuards(GameplayPatternEvent[] source, float beatSec)
+        {
+            if (source == null || source.Length == 0)
+            {
+                return Array.Empty<GameplayPatternEvent>();
+            }
+
+            float safeBeatSec = Mathf.Max(0.0001f, beatSec);
+            float minReactionSec = Mathf.Clamp(0.85f * safeBeatSec, 0.30f, 0.55f);
+            var hazards = source
+                .Where(e => e != null && e.isHazard)
+                .OrderBy(e => e.hitTimeSec)
+                .ToArray();
+
+            // Pass 1: one real hazard per beat index.
+            var beatBest = new Dictionary<int, GameplayPatternEvent>();
+            for (int i = 0; i < hazards.Length; i++)
+            {
+                GameplayPatternEvent evt = hazards[i];
+                int beatIndex = Mathf.FloorToInt(evt.hitTimeSec / safeBeatSec);
+                if (!beatBest.TryGetValue(beatIndex, out GameplayPatternEvent existing))
+                {
+                    beatBest[beatIndex] = evt;
+                    continue;
+                }
+
+                if (ComputeHazardScore(evt, safeBeatSec) > ComputeHazardScore(existing, safeBeatSec))
+                {
+                    beatBest[beatIndex] = evt;
+                }
+            }
+
+            // Pass 2: limit offbeat density to max one offbeat hazard per bar.
+            var pass2 = new List<GameplayPatternEvent>(beatBest.Values);
+            var byBar = pass2.GroupBy(e => Mathf.FloorToInt(e.hitTimeSec / (safeBeatSec * 4f)));
+            var keep = new HashSet<GameplayPatternEvent>();
+            foreach (IGrouping<int, GameplayPatternEvent> barGroup in byBar)
+            {
+                GameplayPatternEvent[] barEvents = barGroup.OrderBy(e => e.hitTimeSec).ToArray();
+                GameplayPatternEvent bestOffbeat = null;
+                float bestOffbeatScore = float.MinValue;
+                for (int i = 0; i < barEvents.Length; i++)
+                {
+                    GameplayPatternEvent evt = barEvents[i];
+                    if (!IsOffbeatTime(evt.hitTimeSec, safeBeatSec))
+                    {
+                        keep.Add(evt);
+                        continue;
+                    }
+
+                    float score = ComputeHazardScore(evt, safeBeatSec);
+                    if (score > bestOffbeatScore)
+                    {
+                        bestOffbeatScore = score;
+                        bestOffbeat = evt;
+                    }
+                }
+
+                if (bestOffbeat != null)
+                {
+                    keep.Add(bestOffbeat);
+                }
+            }
+
+            // Pass 3: global reaction gap guard.
+            GameplayPatternEvent[] gapSorted = keep
+                .OrderBy(e => e.hitTimeSec)
+                .ToArray();
+            var spaced = new List<GameplayPatternEvent>(gapSorted.Length);
+            for (int i = 0; i < gapSorted.Length; i++)
+            {
+                GameplayPatternEvent candidate = gapSorted[i];
+                float candidateScore = ComputeHazardScore(candidate, safeBeatSec);
+                if (spaced.Count == 0)
+                {
+                    spaced.Add(candidate);
+                    continue;
+                }
+
+                GameplayPatternEvent previous = spaced[spaced.Count - 1];
+                float delta = candidate.hitTimeSec - previous.hitTimeSec;
+                if (delta >= minReactionSec)
+                {
+                    spaced.Add(candidate);
+                    continue;
+                }
+
+                float prevScore = ComputeHazardScore(previous, safeBeatSec);
+                if (candidateScore > prevScore + 0.08f)
+                {
+                    spaced[spaced.Count - 1] = candidate;
+                }
+            }
+
+            // Pass 4: cap hazards per bar by section type.
+            var finalHazards = new List<GameplayPatternEvent>(spaced.Count);
+            var barBuckets = spaced.GroupBy(e => Mathf.FloorToInt(e.hitTimeSec / (safeBeatSec * 4f)));
+            foreach (IGrouping<int, GameplayPatternEvent> bucket in barBuckets)
+            {
+                GameplayPatternEvent[] eventsInBar = bucket.ToArray();
+                string sectionType = eventsInBar.Length > 0 ? (eventsInBar[0].sectionType ?? GameplaySectionTypes.Active) : GameplaySectionTypes.Active;
+                int maxPerBar = ResolveBarHazardCap(sectionType, eventsInBar);
+                GameplayPatternEvent[] selected = eventsInBar
+                    .OrderByDescending(e => ComputeHazardScore(e, safeBeatSec))
+                    .ThenBy(e => Mathf.Abs(Mathf.Repeat(e.hitTimeSec, safeBeatSec * 4f)))
+                    .Take(maxPerBar)
+                    .OrderBy(e => e.hitTimeSec)
+                    .ToArray();
+                finalHazards.AddRange(selected);
+            }
+
+            // Pass 5: opening safety ramp (first seconds stay readable).
+            float openingWindowSec = 9f;
+            float openingMinGapSec = Mathf.Max(0.46f, safeBeatSec * 1.05f);
+            var openingAdjusted = new List<GameplayPatternEvent>(finalHazards.Count);
+            GameplayPatternEvent lastOpening = null;
+            for (int i = 0; i < finalHazards.Count; i++)
+            {
+                GameplayPatternEvent evt = finalHazards[i];
+                if (evt == null)
+                {
+                    continue;
+                }
+
+                if (evt.hitTimeSec > openingWindowSec)
+                {
+                    openingAdjusted.Add(evt);
+                    continue;
+                }
+
+                if (string.Equals(evt.kind, GameplayPatternKinds.HoldSlide, StringComparison.OrdinalIgnoreCase))
+                {
+                    // Early holds read poorly; keep opening focused on lane-read basics.
+                    continue;
+                }
+
+                if (lastOpening != null && (evt.hitTimeSec - lastOpening.hitTimeSec) < openingMinGapSec)
+                {
+                    float keepScore = ComputeHazardScore(lastOpening, safeBeatSec);
+                    float candScore = ComputeHazardScore(evt, safeBeatSec);
+                    if (candScore > keepScore + 0.10f)
+                    {
+                        openingAdjusted[openingAdjusted.Count - 1] = evt;
+                        lastOpening = evt;
+                    }
+
+                    continue;
+                }
+
+                openingAdjusted.Add(evt);
+                lastOpening = evt;
+            }
+
+            var finalSet = new HashSet<GameplayPatternEvent>(openingAdjusted);
+            GameplayPatternEvent[] filtered = source
+                .Where(e => e != null && (!e.isHazard || finalSet.Contains(e)))
+                .OrderBy(e => e.hitTimeSec)
+                .ThenBy(e => e.kind)
+                .ToArray();
+            return filtered;
+        }
+
+        private static int ResolveBarHazardCap(string sectionType, GameplayPatternEvent[] eventsInBar)
+        {
+            if (string.Equals(sectionType, GameplaySectionTypes.Rest, StringComparison.OrdinalIgnoreCase))
+            {
+                return 0;
+            }
+
+            if (string.Equals(sectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase))
+            {
+                return 3;
+            }
+
+            if (string.Equals(sectionType, GameplaySectionTypes.Transition, StringComparison.OrdinalIgnoreCase))
+            {
+                return 2;
+            }
+
+            return 2;
+        }
+
+        private static bool IsOffbeatTime(float timeSec, float beatSec)
+        {
+            float beatPhase = Mathf.Repeat(timeSec, beatSec) / Mathf.Max(0.0001f, beatSec);
+            return beatPhase > 0.12f && beatPhase < 0.88f;
+        }
+
+        private static float ComputeHazardScore(GameplayPatternEvent evt, float beatSec)
+        {
+            if (evt == null)
+            {
+                return float.MinValue;
+            }
+
+            float score = evt.intensity;
+            if (string.Equals(evt.sourceKind, BeatKinds.Accent, StringComparison.OrdinalIgnoreCase))
+            {
+                score += 0.35f;
+            }
+
+            if (string.Equals(evt.kind, GameplayPatternKinds.HoldSlide, StringComparison.OrdinalIgnoreCase))
+            {
+                score += 0.22f;
+            }
+
+            if (!IsOffbeatTime(evt.hitTimeSec, beatSec))
+            {
+                score += 0.18f;
+            }
+
+            if (string.Equals(evt.archetype, GameplayArchetypes.AccentCrusher, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(evt.archetype, GameplayArchetypes.CrossGate, StringComparison.OrdinalIgnoreCase))
+            {
+                score += 0.12f;
+            }
+
+            return score;
         }
 
         private static char SectionToMask(string sectionType)

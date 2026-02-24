@@ -8,6 +8,8 @@ Automation helpers for bootstrap, build, upload, and versioning.
 - `bootstrap-template-projects.ps1`: generate real Unity template projects under `Templates/*Template/UnityProject`.
 - `doctor.ps1`: prerequisite diagnostics (Unity/modules/tooling/env) with PASS/FAIL/SKIP report.
 - `analyze-audio.ps1`: deterministic WAV analysis, catalog generation, and beatmap JSON export.
+- `sync-zebradash-artwork.ps1`: copy local artwork pack into `Assets/Resources/ZebraDashArtLocal` with filename-based auto mapping.
+- `sync-zebradash-industrial-artwork.ps1`: extract/sync Industrial Tileset zip (16p + hazards) into `Assets/Resources/ZebraDashArtLocal/Industrial`.
 - `check-secrets.ps1`: fail if forbidden secret files/patterns are found.
 - `check-docs.ps1`: verify required docs set exists.
 - `check-template-purity.ps1`: fail if forbidden Sirius* folders exist under template/game Unity assets.

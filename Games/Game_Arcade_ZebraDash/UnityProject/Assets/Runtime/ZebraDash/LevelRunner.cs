@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using MiniLab.Core.Rhythm;
 using UnityEngine;
+using ZebraDash.LevelDesign;
 
 namespace ZebraDash
 {
@@ -19,6 +20,7 @@ namespace ZebraDash
     public sealed class LevelRunner : MonoBehaviour
     {
         private const string DeviceOffsetPrefsKey = "minilab.rhythm.device_offset_sec";
+        private const float PixelSnapPpu = 16f;
 
         [SerializeField] private Camera targetCamera;
         [SerializeField] private Transform playerTransform;
@@ -27,10 +29,31 @@ namespace ZebraDash
         [SerializeField] private AudioSource audioSource;
         [SerializeField] private ObstacleSpawner obstacleSpawner;
         [SerializeField] private PlayerController playerController;
+        [SerializeField] private ParallaxSystem parallaxSystem;
         [SerializeField, Range(2, 4)] private int countdownBeats = 3;
-        [SerializeField] private float collisionWindowSec = 0.07f;
-        [SerializeField] private float introCollisionGraceSec = 0.95f;
-        [SerializeField] private float worldScrollUnitsPerSec = 14f;
+        [SerializeField] private float collisionWindowSec = 0.074f;
+        [SerializeField] private float introCollisionGraceSec = 2.20f;
+        [SerializeField] private float worldScrollUnitsPerSec = 8.0f;
+        [SerializeField] private float hitLineOffsetX = 1.75f;
+        [SerializeField] private bool useJumpOnlyLevelDesign = true;
+        [SerializeField] private bool useGlideMechanic = false;
+        [SerializeField] private bool enableModeSwitching = false;
+        [SerializeField] private bool forceMazeGlideMode = false;
+        [SerializeField] private float modeSwitchBlendLeadSec = 0.10f;
+        [SerializeField] private float hazardHitToleranceY = 0.22f;
+        [SerializeField] private float holdHazardToleranceY = 0.32f;
+        [SerializeField] private bool mazeCollisionEnabled = true;
+        [SerializeField] private float mazeProbeOffsetX = 0.18f;
+        [SerializeField] private float groundProbeOffsetX = 0.20f;
+        [SerializeField] private float mazeWallMarginY = 0.08f;
+        [SerializeField] private float mazeCollisionArmDelaySec = 4.8f;
+        [SerializeField] private float mazeOutOfBoundsGraceSec = 0.42f;
+        [SerializeField] private float mazeHardOvershootY = 0.34f;
+        [SerializeField] private float groundFloorInsetY = 0.16f;
+        [SerializeField] private float groundCeilingInsetY = 0.18f;
+
+        private float lowerLaneY = -1.2f;
+        private float upperLaneY = 1.2f;
 
         private RunState state = RunState.Idle;
         private float countdownRemaining;
@@ -56,6 +79,8 @@ namespace ZebraDash
         private BeatEvent[] tapJudgeEvents = Array.Empty<BeatEvent>();
         private GameplayTapScheduleEvent[] tapScheduleEntries = Array.Empty<GameplayTapScheduleEvent>();
         private GameplayPatternEvent[] cameraShiftEvents = Array.Empty<GameplayPatternEvent>();
+        private MazeBeatCue[] mazeBeatCues = Array.Empty<MazeBeatCue>();
+        private int nextMazeCueIndex;
         private readonly HashSet<int> consumedTapIndices = new HashSet<int>();
         private readonly HashSet<int> missedTapIndices = new HashSet<int>();
         private readonly HashSet<int> resolvedHazards = new HashSet<int>();
@@ -66,7 +91,36 @@ namespace ZebraDash
         private float lastTapOffsetMs;
         private bool hazardsArmed;
         private float hazardsAutoArmSec;
+        private float mazeCollisionArmSec;
+        private float mazeOutOfBoundsAccumSec;
         private readonly BeatGrid beatGrid = new BeatGrid(120f, 4, 4);
+        private LevelOrchestration levelOrchestration;
+        private SectionPlan activeSectionPlan;
+        private MovementProfile activeMovementProfile;
+        private int activeSectionIndex = -1;
+        private float currentScrollUnitsPerSec;
+        private float accumulatedWorldScrollPos;
+        private float mazeSyncAvgCueOffsetMs;
+        private float mazeSyncMaxCueOffsetMs;
+        private int mazeSyncOffGridCueCount;
+        private int mazeSyncExpectedTapCount;
+        private float mazeSyncAvgTapGapSec;
+        private float mazeSyncMaxTapGapSec;
+        private float mazeSyncFirstExpectedTapSec;
+        private int mazeSyncUnalignedSectionCount;
+        private bool mazeSyncAnalyzed;
+
+        private readonly struct HazardEnvelope
+        {
+            public HazardEnvelope(float centerY, float halfHeight)
+            {
+                CenterY = centerY;
+                HalfHeight = Mathf.Max(0.05f, halfHeight);
+            }
+
+            public float CenterY { get; }
+            public float HalfHeight { get; }
+        }
 
         private readonly InputJudge inputJudge = new InputJudge(new JudgeWindows
         {
@@ -96,7 +150,7 @@ namespace ZebraDash
         public string FailReason => failReason;
         public float CountdownRemaining => Mathf.Max(0f, countdownRemaining);
         public float SongTimeSec => beatClock != null ? beatClock.NowSeconds : 0f;
-        public float HitLineX => playerTransform != null ? playerTransform.position.x : -4f;
+        public float HitLineX => playerTransform != null ? playerTransform.position.x + hitLineOffsetX : -3.28f;
         public float OffsetMs => activeOffsetSec * 1000f;
         public float DeviceOffsetMs => inputJudge.DeviceOffsetSec * 1000f;
         public float SessionPhaseMs => inputJudge.SessionPhaseMs;
@@ -110,8 +164,9 @@ namespace ZebraDash
         public float BarSec => beatGrid.BarSec;
         public float PhaseBeat => beatGrid.GetPhaseBeat(SongTimeSec);
         public float PhaseBar => beatGrid.GetPhaseBar(SongTimeSec);
-        public float WorldScrollUnitsPerSec => Mathf.Max(0.1f, worldScrollUnitsPerSec);
-        public float WorldScrollPos => SongTimeSec * WorldScrollUnitsPerSec;
+        public float WorldScrollUnitsPerSec => Mathf.Max(0.1f, currentScrollUnitsPerSec > 0.01f ? currentScrollUnitsPerSec : worldScrollUnitsPerSec);
+        public float WorldScrollPos => accumulatedWorldScrollPos;
+        public float PlayerX => playerTransform != null ? playerTransform.position.x : 0f;
         public string HazardMaskBar => BuildCurrentBarHazardMask();
         public string GridDebugLine => BuildCurrentGridDebugLine();
         public string TwoBarPlanDebug => BuildTwoBarPlanDebug();
@@ -120,8 +175,11 @@ namespace ZebraDash
         public float CurrentStrain => currentStrain;
         public float TargetStrain => targetStrain;
         public string CurrentPresetId => currentPresetId;
+        public int PatternSeed => activePattern != null ? activePattern.seed : 0;
+        public string ActiveTrackId => activeTrackId ?? string.Empty;
         public IReadOnlyList<float> AccentPulseHitTimes => accentPulseHitTimes;
         public string NextHazardsDebug => BuildNextHazardsDebugLine();
+        public string MazeSyncDebug => BuildMazeSyncDebugLine();
         public int ActiveObstacleCount => obstacleSpawner != null ? obstacleSpawner.ActiveCount : 0;
         public int PooledObstacleCount => obstacleSpawner != null ? obstacleSpawner.PoolCount : 0;
         public int CreatedObstacleCount => obstacleSpawner != null ? obstacleSpawner.CreatedCount : 0;
@@ -199,10 +257,15 @@ namespace ZebraDash
             {
                 float songTime = SongTimeSec;
                 float previousSongTime = hasSongTimeSample ? previousSongTimeSec : songTime;
+                float songDt = Mathf.Max(0f, songTime - previousSongTime);
+                ApplySectionProfile(songTime, false);
+                accumulatedWorldScrollPos += WorldScrollUnitsPerSec * songDt;
                 playerController?.SetTimingContext(songTime, beatGrid.BeatSec);
                 obstacleSpawner?.Tick(songTime);
                 TickSectionState(songTime);
+                UpdateMovementProfile(songTime, false);
                 TickHazards(previousSongTime, songTime);
+                TickMazeCollision(previousSongTime, songTime);
                 TickAutoMiss(songTime);
                 TickCameraShift(songTime);
 
@@ -260,7 +323,12 @@ namespace ZebraDash
             }
         }
 
-        public void StartRun(BeatMap beatMap, MusicTrackEntry trackEntry, float offsetSec)
+        public void ConfigureParallax(ParallaxSystem system)
+        {
+            parallaxSystem = system;
+        }
+
+        public void StartRun(BeatMap beatMap, MusicTrackEntry trackEntry, float offsetSec, int trackIndex = -1)
         {
             if (beatMap == null || audioSource == null || beatClock == null || obstacleSpawner == null || playerController == null)
             {
@@ -281,9 +349,20 @@ namespace ZebraDash
                 ? explicitDurationSec
                 : EstimateLevelDuration(runtimeBeatMap);
             beatGrid.Configure(runtimeBeatMap != null ? runtimeBeatMap.bpm : activeBeatMap.bpm, 4, 4);
+            levelOrchestration = LevelOrchestrator.Build(runtimeBeatMap, levelDurationSec, activeTrackId);
+            activeSectionPlan = levelOrchestration.ResolveSectionAt(0f);
+            activeSectionIndex = activeSectionPlan != null ? activeSectionPlan.sectionIndex : -1;
+            activeMovementProfile = levelOrchestration.ResolveProfile(activeSectionPlan != null ? activeSectionPlan.movementProfileRef : string.Empty);
+            currentScrollUnitsPerSec = activeMovementProfile != null ? activeMovementProfile.ScrollUnitsPerSec : worldScrollUnitsPerSec;
+            accumulatedWorldScrollPos = 0f;
 
             canonicalEvents = BeatMapEventUtils.GetCanonicalEvents(runtimeBeatMap);
             activePattern = GameplayPatternGenerator.Build(runtimeBeatMap, activeTrackId, 1f);
+            obstacleSpawner.ConfigureThemeContext(
+                trackId: activeTrackId,
+                trackIndex: trackIndex,
+                explicitThemeCode: trackEntry != null ? trackEntry.themeCode : string.Empty,
+                themeSeed: activePattern != null ? activePattern.seed : 0);
             tapScheduleEntries = (activePattern.tapSchedule ?? Array.Empty<GameplayTapScheduleEvent>())
                 .OrderBy(e => e.timeSec)
                 .ThenBy(e => e.beatIndex)
@@ -319,25 +398,73 @@ namespace ZebraDash
             lastEmptyTapDecision = "None";
             lastTapOffsetMs = 0f;
             worldShiftX = 0f;
-            hazardsArmed = false;
+            hazardsArmed = !useJumpOnlyLevelDesign;
+            mazeOutOfBoundsAccumSec = 0f;
             ResetWorldShift();
             hasSongTimeSample = false;
             previousSongTimeSec = 0f;
 
-            obstacleSpawner.Configure(activePattern);
+            if (useJumpOnlyLevelDesign)
+            {
+                obstacleSpawner.ConfigureStaticLevel(levelOrchestration, levelDurationSec, activePattern.seed);
+                mazeBeatCues = obstacleSpawner.BeatCues
+                    .Where(c => c != null && c.expectedTap)
+                    .OrderBy(c => c.timeSec)
+                    .ToArray();
+            }
+            else
+            {
+                obstacleSpawner.Configure(activePattern);
+                mazeBeatCues = Array.Empty<MazeBeatCue>();
+            }
             obstacleSpawner.ResetAll();
+            nextMazeCueIndex = 0;
+            AnalyzeMazeFlowSync();
 
             inputJudge.SetDeviceOffset(LoadDeviceOffsetSec());
             inputJudge.ConfigureForBpm(runtimeBeatMap != null ? runtimeBeatMap.bpm : activeBeatMap.bpm);
             inputJudge.ResetSessionPhase();
-            playerController.InitializeLanes(-1.2f, 1.2f);
-            playerController.SetLane(ResolveInitialLane(activePattern));
-            playerController.SetInputEnabled(false);
-
             float secondsPerBeat = 60f / Mathf.Max(1f, runtimeBeatMap != null ? runtimeBeatMap.bpm : activeBeatMap.bpm);
-            introCollisionGraceSec = Mathf.Max(3.2f, secondsPerBeat * 7f);
-            hazardsAutoArmSec = Mathf.Max(7f, introCollisionGraceSec + 1f);
-            countdownRemaining = 3f;
+            if (useJumpOnlyLevelDesign)
+            {
+                introCollisionGraceSec = Mathf.Max(1.1f, secondsPerBeat * 2.5f);
+                mazeCollisionArmSec = introCollisionGraceSec + 0.25f;
+                hazardsAutoArmSec = introCollisionGraceSec + 0.45f;
+            }
+            else
+            {
+                introCollisionGraceSec = Mathf.Max(5.6f, secondsPerBeat * 10f);
+                mazeCollisionArmSec = Mathf.Max(mazeCollisionArmDelaySec, introCollisionGraceSec + 0.65f);
+                hazardsAutoArmSec = Mathf.Max(7.0f, introCollisionGraceSec + 1.80f);
+            }
+            countdownRemaining = Mathf.Max(1f, countdownBeats * secondsPerBeat);
+            hazardHitToleranceY = Mathf.Clamp(hazardHitToleranceY, 0.12f, 0.18f);
+            holdHazardToleranceY = Mathf.Clamp(holdHazardToleranceY, 0.20f, 0.30f);
+
+            if (useJumpOnlyLevelDesign)
+            {
+                lowerLaneY = -2.0f;
+                upperLaneY = 2.0f;
+            }
+            else
+            {
+                lowerLaneY = -1.2f;
+                upperLaneY = 1.2f;
+            }
+
+            playerController.InitializeLanes(lowerLaneY, upperLaneY);
+            if (activeMovementProfile != null)
+            {
+                playerController.ApplyMovementProfile(activeMovementProfile);
+            }
+
+            playerController.SetMovementMode(useJumpOnlyLevelDesign
+                ? PlayerController.MovementMode.JumpOnly
+                : ResolveMovementModeForSection(0f));
+            playerController.ConfigureGlideCorridor(-2.30f, 2.30f);
+            playerController.SetLane(ResolveInitialLane(activePattern));
+            UpdateMovementProfile(0f, true);
+            playerController.SetInputEnabled(false);
             TransitionTo(RunState.Countdown);
         }
 
@@ -407,6 +534,9 @@ namespace ZebraDash
             float bpm = runtimeBeatMap != null ? runtimeBeatMap.bpm : activeBeatMap.bpm;
             beatClock.StartClock(audioSource, bpm, activeOffsetSec, activeTrackId);
             playerController?.SetTimingContext(0f, beatGrid.BeatSec);
+            ApplySectionProfile(0f, true);
+            UpdateMovementProfile(0f, true);
+
             playerController.SetInputEnabled(true);
             hasSongTimeSample = false;
             previousSongTimeSec = 0f;
@@ -434,7 +564,48 @@ namespace ZebraDash
             }
 
             float now = SongTimeSec;
-            QueueQuantizedLaneSwitch(now);
+            if (useJumpOnlyLevelDesign)
+            {
+                float beatMs = beatGrid.BeatSec * 1000f;
+                float perfectMs = Mathf.Clamp(0.10f * beatMs, 30f, 46f);
+                float goodMs = Mathf.Clamp(0.22f * beatMs, 68f, 98f);
+                if (TryMatchMazeCueTap(now, goodMs, out float deltaMs))
+                {
+                    lastTapOffsetMs = deltaMs;
+                    float absDelta = Mathf.Abs(deltaMs);
+                    if (absDelta <= perfectMs)
+                    {
+                        perfectCount++;
+                        combo++;
+                        score += 120;
+                        lastJudge = JudgeResult.Perfect.ToString();
+                    }
+                    else
+                    {
+                        goodCount++;
+                        combo++;
+                        score += 80;
+                        lastJudge = JudgeResult.Good.ToString();
+                    }
+
+                    lastEmptyTapDecision = EmptyTapDecision.Matched.ToString();
+                }
+                else
+                {
+                    // Jump-only mode: taps outside schedule do not fail.
+                    lastTapOffsetMs = 0f;
+                    lastJudge = "NoScore";
+                    lastEmptyTapDecision = EmptyTapDecision.Ignored.ToString();
+                }
+
+                maxCombo = Mathf.Max(maxCombo, combo);
+                return;
+            }
+
+            if (playerController != null && playerController.Mode == PlayerController.MovementMode.LaneSwitch)
+            {
+                QueueQuantizedLaneSwitch(now);
+            }
             JudgeOutcome outcome = inputJudge.EvaluateNearest(
                 tapJudgeEvents,
                 consumedTapIndices,
@@ -472,25 +643,31 @@ namespace ZebraDash
 
         private void QueueQuantizedLaneSwitch(float nowSec)
         {
-            if (playerController == null)
+            if (playerController == null || playerController.Mode != PlayerController.MovementMode.LaneSwitch)
             {
                 return;
             }
 
             float beatSec = beatGrid.BeatSec;
-            // Movement responsiveness must feel immediate.
-            // Keep beat snap only when input is already very close to the next beat boundary.
-            float nextBeatSec = beatGrid.NextBeatTime(nowSec - 0.0001f);
-            float timeToNextBeat = Mathf.Max(0f, nextBeatSec - nowSec);
-            float snapWindowSec = Mathf.Clamp(beatSec * 0.12f, 0.035f, 0.065f);
-            float quantizedStartSec = timeToNextBeat <= snapWindowSec ? nextBeatSec : nowSec;
+            float quantizedStartSec = nowSec;
             int targetLane = 1 - Mathf.Clamp(playerController.PlannedLaneIndex, 0, 1);
-            float switchSec = Mathf.Clamp(0.18f * beatSec, 0.045f, 0.09f);
+            float switchSec = Mathf.Clamp(0.18f * beatSec, 0.055f, 0.12f);
             playerController.QueueLaneSwitch(targetLane, quantizedStartSec, switchSec);
         }
 
         private void TickAutoMiss(float now)
         {
+            if (forceMazeGlideMode)
+            {
+                return;
+            }
+
+            if (useJumpOnlyLevelDesign)
+            {
+                TickJumpCueMisses(now);
+                return;
+            }
+
             for (int i = 0; i < tapJudgeEvents.Length; i++)
             {
                 if (consumedTapIndices.Contains(i) || missedTapIndices.Contains(i))
@@ -518,8 +695,86 @@ namespace ZebraDash
             }
         }
 
+        private void TickJumpCueMisses(float now)
+        {
+            if (mazeBeatCues == null || mazeBeatCues.Length == 0)
+            {
+                return;
+            }
+
+            float missWindow = Mathf.Max(0.06f, inputJudge.MissWindowSec);
+            while (nextMazeCueIndex < mazeBeatCues.Length)
+            {
+                MazeBeatCue cue = mazeBeatCues[nextMazeCueIndex];
+                if (cue == null || !cue.expectedTap)
+                {
+                    nextMazeCueIndex++;
+                    continue;
+                }
+
+                if (now <= cue.timeSec + missWindow)
+                {
+                    break;
+                }
+
+                missCount++;
+                combo = 0;
+                lastJudge = JudgeResult.Miss.ToString();
+                lastEmptyTapDecision = EmptyTapDecision.Miss.ToString();
+                nextMazeCueIndex++;
+            }
+        }
+
+        private bool TryMatchMazeCueTap(float now, float goodMs, out float deltaMs)
+        {
+            deltaMs = 0f;
+            if (mazeBeatCues == null || mazeBeatCues.Length == 0)
+            {
+                return false;
+            }
+
+            int startIndex = Mathf.Clamp(nextMazeCueIndex - 1, 0, mazeBeatCues.Length - 1);
+            int endIndex = Mathf.Clamp(nextMazeCueIndex + 4, 0, mazeBeatCues.Length - 1);
+            float goodSec = Mathf.Max(0.03f, goodMs / 1000f);
+            float bestAbsDeltaSec = goodSec + 0.0001f;
+            int bestIndex = -1;
+            float bestDeltaSec = 0f;
+
+            for (int i = startIndex; i <= endIndex; i++)
+            {
+                MazeBeatCue cue = mazeBeatCues[i];
+                if (cue == null || !cue.expectedTap)
+                {
+                    continue;
+                }
+
+                float deltaSec = now - cue.timeSec;
+                float absSec = Mathf.Abs(deltaSec);
+                if (absSec <= goodSec && absSec < bestAbsDeltaSec)
+                {
+                    bestAbsDeltaSec = absSec;
+                    bestDeltaSec = deltaSec;
+                    bestIndex = i;
+                }
+            }
+
+            if (bestIndex < 0)
+            {
+                return false;
+            }
+
+            nextMazeCueIndex = Mathf.Max(nextMazeCueIndex, bestIndex + 1);
+            deltaMs = bestDeltaSec * 1000f;
+            return true;
+        }
+
         private void TickHazards(float previousNow, float now)
         {
+            if (useJumpOnlyLevelDesign)
+            {
+                return;
+            }
+
             if (!hazardsArmed)
             {
                 if (now < hazardsAutoArmSec)
@@ -560,7 +815,6 @@ namespace ZebraDash
                     continue;
                 }
 
-                int lane = Mathf.Clamp(evt.lane, 0, 1);
                 if (string.Equals(evt.kind, GameplayPatternKinds.HoldSlide, StringComparison.OrdinalIgnoreCase))
                 {
                     float start = hazard.HitTimeSec;
@@ -572,8 +826,9 @@ namespace ZebraDash
 
                     if (IntersectsWindow(previousNow, now, start, end))
                     {
-                        bool sameLane = playerController.LaneIndex == lane;
-                        if (sameLane)
+                        HazardEnvelope envelope = ResolveHazardEnvelope(evt, hazard, now);
+                        bool inDangerBand = IsPlayerInsideEnvelope(envelope, holdHazardToleranceY);
+                        if (inDangerBand)
                         {
                             string reason = string.IsNullOrWhiteSpace(evt.archetype) ? "Hold collision" : $"{evt.archetype} collision";
                             FailRun(reason);
@@ -596,7 +851,8 @@ namespace ZebraDash
 
                 if (IntersectsWindow(previousNow, now, hazard.HitTimeSec, hitEnd))
                 {
-                    if (playerController.LaneIndex == lane)
+                    HazardEnvelope envelope = ResolveHazardEnvelope(evt, hazard, hazard.HitTimeSec);
+                    if (IsPlayerInsideEnvelope(envelope, hazardHitToleranceY))
                     {
                         FailRun(string.Equals(evt.kind, GameplayPatternKinds.Fakeout, StringComparison.OrdinalIgnoreCase)
                             ? "Fakeout collision"
@@ -612,6 +868,272 @@ namespace ZebraDash
             }
         }
 
+        private void UpdateMovementProfile(float songTimeSec, bool forceSnap)
+        {
+            if (playerController == null)
+            {
+                return;
+            }
+
+            PlayerController.MovementMode targetMode = ResolveMovementModeForSection(songTimeSec + Mathf.Max(0f, modeSwitchBlendLeadSec));
+            if (playerController.Mode != targetMode)
+            {
+                playerController.SetMovementMode(targetMode);
+            }
+
+            float probeOffset = (targetMode == PlayerController.MovementMode.GroundRunner || targetMode == PlayerController.MovementMode.JumpOnly)
+                ? groundProbeOffsetX
+                : mazeProbeOffsetX;
+            float probeX = (playerTransform != null ? playerTransform.position.x : HitLineX) + probeOffset;
+            float scrollPos = accumulatedWorldScrollPos;
+            float gapBottom = 0f;
+            float gapTop = 0f;
+            bool sampled = obstacleSpawner != null
+                && obstacleSpawner.TrySampleMazeGap(probeX, out gapBottom, out gapTop, out _);
+            if (!sampled && parallaxSystem != null)
+            {
+                sampled = parallaxSystem.TrySampleMazeGap(probeX, songTimeSec, scrollPos, out gapBottom, out gapTop, out _);
+            }
+
+            if (!sampled)
+            {
+                return;
+            }
+
+            float margin = Mathf.Max(0.04f, mazeWallMarginY);
+            float safeBottom = gapBottom + margin;
+            float safeTop = gapTop - margin;
+            if (safeTop <= safeBottom)
+            {
+                float center = (gapTop + gapBottom) * 0.5f;
+                safeBottom = center - 0.90f;
+                safeTop = center + 0.90f;
+            }
+
+            if (targetMode == PlayerController.MovementMode.Glide)
+            {
+                playerController.ConfigureGlideCorridor(safeBottom + 0.02f, safeTop - 0.02f);
+                if (forceSnap)
+                {
+                    AlignPlayerToMazeGap(songTimeSec, true);
+                }
+                else
+                {
+                    float y = Mathf.Clamp(playerController.CurrentY, safeBottom + 0.05f, safeTop - 0.05f);
+                    playerController.SetGlideY(y);
+                }
+
+                return;
+            }
+
+            if (targetMode == PlayerController.MovementMode.GroundRunner || targetMode == PlayerController.MovementMode.JumpOnly)
+            {
+                float floor = safeBottom + Mathf.Max(0.08f, groundFloorInsetY);
+                float ceiling = safeTop - Mathf.Max(0.10f, groundCeilingInsetY);
+                if (ceiling - floor < 0.95f)
+                {
+                    float center = (ceiling + floor) * 0.5f;
+                    floor = center - 1.00f;
+                    ceiling = center + 1.00f;
+                }
+
+                playerController.ConfigureGroundBounds(floor, ceiling);
+                if (forceSnap)
+                {
+                    playerController.SetGroundY(Mathf.Clamp(floor + 0.04f, floor, ceiling));
+                }
+
+                return;
+            }
+
+            playerController.ConfigureGlideCorridor(safeBottom, safeTop);
+        }
+
+        private PlayerController.MovementMode ResolveMovementModeForSection(float songTimeSec)
+        {
+            if (useJumpOnlyLevelDesign)
+            {
+                return PlayerController.MovementMode.JumpOnly;
+            }
+
+            if (forceMazeGlideMode)
+            {
+                return PlayerController.MovementMode.Glide;
+            }
+
+            if (!enableModeSwitching)
+            {
+                return useGlideMechanic ? PlayerController.MovementMode.Glide : PlayerController.MovementMode.LaneSwitch;
+            }
+
+            string sectionType = ResolveSectionTypeAt(songTimeSec);
+            if (string.Equals(sectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(sectionType, GameplaySectionTypes.Transition, StringComparison.OrdinalIgnoreCase))
+            {
+                return PlayerController.MovementMode.Glide;
+            }
+
+            if (string.Equals(sectionType, GameplaySectionTypes.Rest, StringComparison.OrdinalIgnoreCase))
+            {
+                return PlayerController.MovementMode.GroundRunner;
+            }
+
+            if (targetStrain >= 0.68f)
+            {
+                return PlayerController.MovementMode.Glide;
+            }
+
+            return PlayerController.MovementMode.GroundRunner;
+        }
+
+        private string ResolveSectionTypeAt(float songTimeSec)
+        {
+            GameplayPatternSectionInfo[] sections = activePattern?.sections ?? Array.Empty<GameplayPatternSectionInfo>();
+            for (int i = 0; i < sections.Length; i++)
+            {
+                GameplayPatternSectionInfo section = sections[i];
+                if (section == null)
+                {
+                    continue;
+                }
+
+                if (songTimeSec >= section.startSec && songTimeSec <= section.endSec)
+                {
+                    return section.sectionType;
+                }
+            }
+
+            RestSectionEvent[] rests = activePattern?.restSections ?? Array.Empty<RestSectionEvent>();
+            for (int i = 0; i < rests.Length; i++)
+            {
+                RestSectionEvent rest = rests[i];
+                if (rest == null)
+                {
+                    continue;
+                }
+
+                if (songTimeSec >= rest.startSec && songTimeSec <= rest.endSec)
+                {
+                    return GameplaySectionTypes.Rest;
+                }
+            }
+
+            return currentSectionState;
+        }
+
+        private void TickMazeCollision(float previousNow, float now)
+        {
+            bool jumpMode = playerController != null
+                && (playerController.Mode == PlayerController.MovementMode.JumpOnly
+                    || playerController.Mode == PlayerController.MovementMode.GroundRunner
+                    || playerController.Mode == PlayerController.MovementMode.Glide);
+            if (!mazeCollisionEnabled || !jumpMode || playerController == null || state != RunState.Playing)
+            {
+                return;
+            }
+
+            float dt = Mathf.Clamp(now - previousNow, 0f, 0.20f);
+            if (now < mazeCollisionArmSec)
+            {
+                return;
+            }
+
+            float probeX = (playerTransform != null ? playerTransform.position.x : HitLineX) + mazeProbeOffsetX;
+            float gapBottom = 0f;
+            float gapTop = 0f;
+            bool sampled = obstacleSpawner != null
+                && obstacleSpawner.TrySampleMazeGap(probeX, out gapBottom, out gapTop, out _);
+            if (!sampled && parallaxSystem != null)
+            {
+                float scrollPos = accumulatedWorldScrollPos;
+                sampled = parallaxSystem.TrySampleMazeGap(probeX, now, scrollPos, out gapBottom, out gapTop, out _);
+            }
+
+            if (!sampled)
+            {
+                mazeOutOfBoundsAccumSec = 0f;
+                return;
+            }
+
+            float y = playerController.CurrentY;
+            if (obstacleSpawner != null && obstacleSpawner.CheckDangerCollision(probeX, y, 0.14f, out string dangerReason))
+            {
+                FailRun(dangerReason);
+                return;
+            }
+
+            float margin = Mathf.Max(0.04f, mazeWallMarginY);
+            float safeBottom = gapBottom + margin;
+            float safeTop = gapTop - margin;
+            if (safeTop <= safeBottom)
+            {
+                float center = (gapTop + gapBottom) * 0.5f;
+                safeBottom = center - 0.90f;
+                safeTop = center + 0.90f;
+            }
+
+            if (y < safeBottom || y > safeTop)
+            {
+                float overshoot = y < safeBottom ? (safeBottom - y) : (y - safeTop);
+                float hardOvershoot = Mathf.Max(0.12f, mazeHardOvershootY);
+                float pressure01 = Mathf.InverseLerp(0.02f, hardOvershoot, overshoot);
+                float pressure = Mathf.Lerp(0.65f, 2.2f, pressure01);
+                mazeOutOfBoundsAccumSec += dt * pressure;
+
+                float grace = Mathf.Max(0.06f, mazeOutOfBoundsGraceSec);
+                bool hardBreach = overshoot >= hardOvershoot && mazeOutOfBoundsAccumSec >= grace * 0.55f;
+                if (hardBreach || mazeOutOfBoundsAccumSec >= grace)
+                {
+                    string boundary = y < safeBottom ? "floor" : "ceiling";
+                    FailRun($"Maze {boundary} collision ({overshoot:F2}u)");
+                }
+                return;
+            }
+
+            mazeOutOfBoundsAccumSec = Mathf.Max(0f, mazeOutOfBoundsAccumSec - (dt * 3.1f));
+        }
+
+        private void AlignPlayerToMazeGap(float songTimeSec, bool forceCenter)
+        {
+            if (playerController == null || playerController.Mode != PlayerController.MovementMode.Glide)
+            {
+                return;
+            }
+
+            float probeX = (playerTransform != null ? playerTransform.position.x : HitLineX) + mazeProbeOffsetX;
+            float gapBottom = 0f;
+            float gapTop = 0f;
+            bool sampled = obstacleSpawner != null
+                && obstacleSpawner.TrySampleMazeGap(probeX, out gapBottom, out gapTop, out _);
+            if (!sampled && parallaxSystem != null)
+            {
+                float scrollPos = accumulatedWorldScrollPos;
+                sampled = parallaxSystem.TrySampleMazeGap(probeX, songTimeSec, scrollPos, out gapBottom, out gapTop, out _);
+            }
+
+            if (!sampled)
+            {
+                return;
+            }
+
+            float margin = Mathf.Max(0.04f, mazeWallMarginY);
+            float safeBottom = gapBottom + margin;
+            float safeTop = gapTop - margin;
+            if (safeTop <= safeBottom)
+            {
+                float center = (gapTop + gapBottom) * 0.5f;
+                safeBottom = center - 0.95f;
+                safeTop = center + 0.95f;
+            }
+
+            float centerY = (safeBottom + safeTop) * 0.5f;
+            float targetY = forceCenter
+                ? centerY
+                : Mathf.Clamp(playerController.CurrentY, safeBottom + 0.06f, safeTop - 0.06f);
+            targetY = Mathf.Clamp(targetY, safeBottom + 0.04f, safeTop - 0.04f);
+            playerController.SetGlideY(targetY);
+        }
+
         private static bool IntersectsWindow(float t0, float t1, float start, float end)
         {
             float a = Mathf.Min(t0, t1);
@@ -619,8 +1141,131 @@ namespace ZebraDash
             return b >= start && a <= end;
         }
 
+        private HazardEnvelope ResolveHazardEnvelope(GameplayPatternEvent evt, ObstacleSpawner.SpawnDirective hazard, float nowSec)
+        {
+            int lane = Mathf.Clamp(evt != null ? evt.lane : 0, 0, 1);
+            float laneCenter = ResolveLaneY(lane);
+            float centerY = laneCenter;
+            float halfHeight = 0.22f;
+            string archetype = evt != null && !string.IsNullOrWhiteSpace(evt.archetype)
+                ? evt.archetype
+                : GameplayArchetypes.LaneBlock;
+            float travel = Mathf.Max(0.08f, hazard.TravelTimeSec);
+            float approach01 = Mathf.Clamp01((nowSec - hazard.SpawnTimeSec) / travel);
+
+            if (string.Equals(archetype, GameplayArchetypes.AccentCrusher, StringComparison.OrdinalIgnoreCase))
+            {
+                halfHeight = 0.28f;
+            }
+            else if (string.Equals(archetype, GameplayArchetypes.AlternatorPair, StringComparison.OrdinalIgnoreCase))
+            {
+                halfHeight = 0.24f;
+                centerY += Mathf.Sin((nowSec - hazard.SpawnTimeSec) * 8.5f) * Mathf.Lerp(0.16f, 0.04f, approach01);
+            }
+            else if (string.Equals(archetype, GameplayArchetypes.StreakBreaker, StringComparison.OrdinalIgnoreCase))
+            {
+                halfHeight = 0.26f;
+                centerY += Mathf.Sin((nowSec * 5.2f) + (hazard.Seed * 0.021f)) * Mathf.Lerp(0.14f, 0.03f, approach01);
+            }
+            else if (string.Equals(archetype, GameplayArchetypes.CrossGate, StringComparison.OrdinalIgnoreCase))
+            {
+                halfHeight = 0.30f;
+                float laneSign = lane == 0 ? -1f : 1f;
+                centerY += laneSign * Mathf.Sin((1f - approach01) * Mathf.PI) * 0.22f;
+            }
+            else if (string.Equals(archetype, GameplayArchetypes.HoldLaneLock, StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(archetype, GameplayArchetypes.HoldReleaseGate, StringComparison.OrdinalIgnoreCase))
+            {
+                halfHeight = 0.34f;
+            }
+            else if (string.Equals(archetype, GameplayArchetypes.OffbeatSnap, StringComparison.OrdinalIgnoreCase))
+            {
+                halfHeight = 0.20f;
+            }
+            else if (string.Equals(archetype, GameplayArchetypes.SpinnerSentinel, StringComparison.OrdinalIgnoreCase))
+            {
+                halfHeight = 0.32f;
+                centerY += Mathf.Sin((nowSec * 5.4f) + (hazard.Seed * 0.019f)) * Mathf.Lerp(0.20f, 0.05f, approach01);
+            }
+            else if (string.Equals(archetype, GameplayArchetypes.RisingWall, StringComparison.OrdinalIgnoreCase))
+            {
+                halfHeight = 0.36f;
+                centerY = laneCenter - Mathf.Lerp(0.58f, 0.0f, approach01);
+            }
+
+            return new HazardEnvelope(centerY, halfHeight);
+        }
+
+        private bool IsPlayerInsideEnvelope(HazardEnvelope envelope, float extraToleranceY)
+        {
+            if (playerController == null)
+            {
+                return false;
+            }
+
+            if (playerController.Mode == PlayerController.MovementMode.LaneSwitch)
+            {
+                float laneY = ResolveLaneY(Mathf.Clamp(playerController.LaneIndex, 0, 1));
+                return Mathf.Abs(laneY - envelope.CenterY) <= envelope.HalfHeight + (extraToleranceY * 0.25f);
+            }
+
+            float y = playerController.CurrentY;
+            float tolerance = envelope.HalfHeight + Mathf.Max(0.04f, extraToleranceY);
+            return Mathf.Abs(y - envelope.CenterY) <= tolerance;
+        }
+
+        private float ResolveLaneY(int lane)
+        {
+            return lane <= 0 ? lowerLaneY : upperLaneY;
+        }
+
+        private void ApplySectionProfile(float songTimeSec, bool force)
+        {
+            if (!useJumpOnlyLevelDesign || levelOrchestration == null)
+            {
+                return;
+            }
+
+            SectionPlan section = levelOrchestration.ResolveSectionAt(songTimeSec);
+            if (section == null)
+            {
+                return;
+            }
+
+            bool sectionChanged = force || section.sectionIndex != activeSectionIndex;
+            activeSectionPlan = section;
+            if (!sectionChanged)
+            {
+                return;
+            }
+
+            activeSectionIndex = section.sectionIndex;
+            MovementProfile profile = levelOrchestration.ResolveProfile(section.movementProfileRef);
+            if (profile == null)
+            {
+                return;
+            }
+
+            activeMovementProfile = profile;
+            currentScrollUnitsPerSec = Mathf.Max(2f, profile.ScrollUnitsPerSec);
+            playerController?.ApplyMovementProfile(profile);
+        }
+
         private void TickSectionState(float now)
         {
+            if (useJumpOnlyLevelDesign && levelOrchestration != null)
+            {
+                SectionPlan section = levelOrchestration.ResolveSectionAt(now);
+                if (section != null)
+                {
+                    currentSectionState = LevelOrchestrator.ToLegacySectionType(section.sectionType);
+                    currentStrain = Mathf.Clamp01(section.densityTarget);
+                    targetStrain = Mathf.Clamp01(section.difficultyRamp);
+                    currentPresetId = section.movementProfileRef;
+                    return;
+                }
+            }
+
             currentSectionState = "Active";
             currentStrain = 0f;
             targetStrain = 0f;
@@ -686,14 +1331,17 @@ namespace ZebraDash
         {
             if (worldRoot != null)
             {
-                worldRoot.localPosition = new Vector3(baseWorldPosition.x + worldShiftX, baseWorldPosition.y, baseWorldPosition.z);
+                worldRoot.localPosition = new Vector3(
+                    SnapToPixel(baseWorldPosition.x + worldShiftX),
+                    SnapToPixel(baseWorldPosition.y),
+                    baseWorldPosition.z);
             }
 
             if (targetCamera != null)
             {
                 targetCamera.transform.position = new Vector3(
-                    baseCameraPosition.x + (worldShiftX * 0.08f),
-                    baseCameraPosition.y,
+                    SnapToPixel(baseCameraPosition.x + (worldShiftX * 0.08f)),
+                    SnapToPixel(baseCameraPosition.y),
                     baseCameraPosition.z);
             }
         }
@@ -722,16 +1370,40 @@ namespace ZebraDash
             }
 
             targetCamera.orthographic = true;
-            targetCamera.orthographicSize = 5f;
+            targetCamera.allowMSAA = false;
+            targetCamera.allowHDR = false;
+            if (targetCamera.orthographicSize <= 0.01f)
+            {
+                targetCamera.orthographicSize = 5.8f;
+            }
+
+            if (QualitySettings.antiAliasing != 0)
+            {
+                QualitySettings.antiAliasing = 0;
+            }
+
             Vector3 viewport = new Vector3(0.33f, 0.5f, Mathf.Abs(targetCamera.transform.position.z));
             Vector3 position = targetCamera.ViewportToWorldPoint(viewport);
-            playerTransform.position = new Vector3(position.x, playerTransform.position.y, 0f);
+            playerTransform.position = new Vector3(
+                SnapToPixel(position.x),
+                SnapToPixel(playerTransform.position.y),
+                0f);
         }
 
         private void CacheBasePositions()
         {
             baseWorldPosition = worldRoot != null ? worldRoot.localPosition : Vector3.zero;
             baseCameraPosition = targetCamera != null ? targetCamera.transform.position : Vector3.zero;
+            baseWorldPosition.x = SnapToPixel(baseWorldPosition.x);
+            baseWorldPosition.y = SnapToPixel(baseWorldPosition.y);
+            baseCameraPosition.x = SnapToPixel(baseCameraPosition.x);
+            baseCameraPosition.y = SnapToPixel(baseCameraPosition.y);
+        }
+
+        private static float SnapToPixel(float value)
+        {
+            float ppu = Mathf.Max(1f, PixelSnapPpu);
+            return Mathf.Round(value * ppu) / ppu;
         }
 
         private static float ResolveTimelineStartSec(BeatMap source, MusicTrackEntry entry)
@@ -1082,6 +1754,122 @@ namespace ZebraDash
             }
 
             return preview.Count == 0 ? "-" : string.Join(" | ", preview);
+        }
+
+        private void AnalyzeMazeFlowSync()
+        {
+            mazeSyncAvgCueOffsetMs = 0f;
+            mazeSyncMaxCueOffsetMs = 0f;
+            mazeSyncOffGridCueCount = 0;
+            mazeSyncExpectedTapCount = 0;
+            mazeSyncAvgTapGapSec = 0f;
+            mazeSyncMaxTapGapSec = 0f;
+            mazeSyncFirstExpectedTapSec = 0f;
+            mazeSyncUnalignedSectionCount = 0;
+            mazeSyncAnalyzed = false;
+
+            if (!useJumpOnlyLevelDesign || mazeBeatCues == null || mazeBeatCues.Length == 0)
+            {
+                return;
+            }
+
+            float beatSec = Mathf.Max(0.0001f, beatGrid.BeatSec);
+            float sumCueOffsetMs = 0f;
+            int cueCount = 0;
+            float sumTapGapSec = 0f;
+            int tapGapCount = 0;
+            float lastExpectedTapSec = -1f;
+            float firstExpectedTapSec = -1f;
+
+            for (int i = 0; i < mazeBeatCues.Length; i++)
+            {
+                MazeBeatCue cue = mazeBeatCues[i];
+                if (cue == null)
+                {
+                    continue;
+                }
+
+                cueCount++;
+                float nearestBeatSec = Mathf.Round(cue.timeSec / beatSec) * beatSec;
+                float offsetMs = Mathf.Abs((cue.timeSec - nearestBeatSec) * 1000f);
+                sumCueOffsetMs += offsetMs;
+                mazeSyncMaxCueOffsetMs = Mathf.Max(mazeSyncMaxCueOffsetMs, offsetMs);
+                if (offsetMs > 6f)
+                {
+                    mazeSyncOffGridCueCount++;
+                }
+
+                if (!cue.expectedTap)
+                {
+                    continue;
+                }
+
+                mazeSyncExpectedTapCount++;
+                if (firstExpectedTapSec < 0f)
+                {
+                    firstExpectedTapSec = cue.timeSec;
+                }
+
+                if (lastExpectedTapSec >= 0f)
+                {
+                    float gapSec = cue.timeSec - lastExpectedTapSec;
+                    sumTapGapSec += gapSec;
+                    tapGapCount++;
+                    mazeSyncMaxTapGapSec = Mathf.Max(mazeSyncMaxTapGapSec, gapSec);
+                }
+
+                lastExpectedTapSec = cue.timeSec;
+            }
+
+            mazeSyncAvgCueOffsetMs = cueCount > 0 ? sumCueOffsetMs / cueCount : 0f;
+            mazeSyncAvgTapGapSec = tapGapCount > 0 ? sumTapGapSec / tapGapCount : 0f;
+            mazeSyncFirstExpectedTapSec = firstExpectedTapSec >= 0f ? firstExpectedTapSec : 0f;
+
+            SectionPlan[] sections = levelOrchestration != null ? levelOrchestration.sections : null;
+            if (sections != null && sections.Length > 0)
+            {
+                for (int i = 0; i < sections.Length; i++)
+                {
+                    SectionPlan section = sections[i];
+                    if (section == null)
+                    {
+                        continue;
+                    }
+
+                    float startBeat = section.startSec / beatSec;
+                    float endBeat = section.endSec / beatSec;
+                    if (Mathf.Abs(startBeat - Mathf.Round(startBeat)) > 0.05f
+                        || Mathf.Abs(endBeat - Mathf.Round(endBeat)) > 0.05f)
+                    {
+                        mazeSyncUnalignedSectionCount++;
+                    }
+                }
+            }
+
+            mazeSyncAnalyzed = true;
+            Debug.Log(
+                $"[ZebraDash][Sync] track={activeTrackId} cues={cueCount} expectedTap={mazeSyncExpectedTapCount} " +
+                $"cueOffsetMs(avg/max)={mazeSyncAvgCueOffsetMs:F2}/{mazeSyncMaxCueOffsetMs:F2} offGrid>6ms={mazeSyncOffGridCueCount} " +
+                $"tapGapSec(avg/max)={mazeSyncAvgTapGapSec:F2}/{mazeSyncMaxTapGapSec:F2} firstTap={mazeSyncFirstExpectedTapSec:F2}s " +
+                $"sectionBeatBoundaryIssues={mazeSyncUnalignedSectionCount}");
+        }
+
+        private string BuildMazeSyncDebugLine()
+        {
+            if (!mazeSyncAnalyzed)
+            {
+                return "Sync: pending";
+            }
+
+            if (!useJumpOnlyLevelDesign)
+            {
+                return "Sync: dynamic-pattern mode";
+            }
+
+            return $"Sync maze cueOff(avg/max):{mazeSyncAvgCueOffsetMs:F1}/{mazeSyncMaxCueOffsetMs:F1}ms " +
+                   $"offGrid:{mazeSyncOffGridCueCount} taps:{mazeSyncExpectedTapCount} " +
+                   $"tapGap(avg/max):{mazeSyncAvgTapGapSec:F2}/{mazeSyncMaxTapGapSec:F2}s firstTap:{mazeSyncFirstExpectedTapSec:F2}s " +
+                   $"sectionBeatIssues:{mazeSyncUnalignedSectionCount}";
         }
 
         private string BuildCurrentBarHazardMask()

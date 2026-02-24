@@ -13,16 +13,6 @@ namespace ZebraDash
             }
 
             Material material = new Material(shader);
-            if (material.HasProperty("_MainTex"))
-            {
-                material.SetTexture("_MainTex", Texture2D.whiteTexture);
-            }
-
-            if (material.HasProperty("_BaseMap"))
-            {
-                material.SetTexture("_BaseMap", Texture2D.whiteTexture);
-            }
-
             ApplyColor(material, color);
 
             if (transparent)

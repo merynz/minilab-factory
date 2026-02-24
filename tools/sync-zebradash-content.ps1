@@ -1,6 +1,10 @@
 param(
     [string]$GamePath = "Games/Game_Arcade_ZebraDash",
-    [string]$ProjectPath = ""
+    [string]$ProjectPath = "",
+    [string]$ArtworkPath = "C:\Users\monster\Desktop\ZebraDashArtWork",
+    [switch]$SyncArtwork,
+    [switch]$SyncIndustrialArtwork,
+    [string]$IndustrialZipPath = "C:\Users\monster\Desktop\ZebraDashArtWork\[SOURCE] Industrial Tileset.zip"
 )
 
 Set-StrictMode -Version Latest
@@ -126,7 +130,55 @@ $audioResult = Sync-DirectoryContent `
     -DestinationDir $audioDestination `
     -Extensions @(".wav")
 
+$artSyncStatus = "SKIP"
+if ($SyncArtwork.IsPresent) {
+    $artSyncScript = Join-Path $PSScriptRoot "sync-zebradash-artwork.ps1"
+    if (Test-Path $artSyncScript) {
+        try {
+            & $artSyncScript -ProjectPath $resolvedProjectPath -ArtworkPath $ArtworkPath
+            if ($LASTEXITCODE -eq 0) {
+                $artSyncStatus = "PASS"
+            }
+            else {
+                $artSyncStatus = "FAIL"
+            }
+        }
+        catch {
+            $artSyncStatus = "FAIL"
+            Write-Host "WARN: Artwork sync failed: $($_.Exception.Message)"
+        }
+    }
+}
+else {
+    Write-Host "SKIP: Artwork sync disabled. Use -SyncArtwork to enable."
+}
+
+$industrialSyncStatus = "SKIP"
+if ($SyncIndustrialArtwork.IsPresent) {
+    $industrialScript = Join-Path $PSScriptRoot "sync-zebradash-industrial-artwork.ps1"
+    if (Test-Path $industrialScript) {
+        try {
+            & $industrialScript -ProjectPath $resolvedProjectPath -SourceZip $IndustrialZipPath
+            if ($LASTEXITCODE -eq 0) {
+                $industrialSyncStatus = "PASS"
+            }
+            else {
+                $industrialSyncStatus = "FAIL"
+            }
+        }
+        catch {
+            $industrialSyncStatus = "FAIL"
+            Write-Host "WARN: Industrial artwork sync failed: $($_.Exception.Message)"
+        }
+    }
+}
+else {
+    Write-Host "SKIP: Industrial artwork sync disabled. Use -SyncIndustrialArtwork to enable."
+}
+
 Write-Host "Content sync summary:"
 @($levelResult, $audioResult) | Format-Table -AutoSize
+Write-Host "Artwork sync: $artSyncStatus"
+Write-Host "Industrial artwork sync: $industrialSyncStatus"
 
 exit 0

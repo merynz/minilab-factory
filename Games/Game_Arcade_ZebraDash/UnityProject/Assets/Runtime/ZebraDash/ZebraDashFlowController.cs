@@ -7,6 +7,7 @@ using UnityEngine.Scripting;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using UnityEngine.EventSystems;
+using ZebraDash.Vfx;
 
 namespace ZebraDash
 {
@@ -44,7 +45,6 @@ namespace ZebraDash
         private Rect lastSafeArea = new Rect(0f, 0f, -1f, -1f);
         private Vector2Int lastScreenSize = Vector2Int.zero;
         private bool safeAreaFallbackLogged;
-        private static Material cachedPlayerMaterial;
 
         private GameObject runtimeRoot;
         private GameObject playerObject;
@@ -78,6 +78,7 @@ namespace ZebraDash
         {
             public string TrackId;
             public bool Success;
+            public string FailReason;
             public int Score;
             public int MaxCombo;
             public int Perfect;
@@ -201,6 +202,7 @@ namespace ZebraDash
                 {
                     TrackId = selectedTrack != null ? selectedTrack.trackId : "unknown",
                     Success = runner.State == RunState.Completed,
+                    FailReason = runner.State == RunState.Completed ? string.Empty : runner.FailReason,
                     Score = runner.Score,
                     MaxCombo = runner.MaxCombo,
                     Perfect = runner.PerfectCount,
@@ -238,6 +240,22 @@ namespace ZebraDash
             float phaseBar = runner != null ? runner.PhaseBar : 0f;
             float worldScrollPos = runner != null ? runner.WorldScrollPos : 0f;
             float beatSec = runner != null ? runner.BeatSec : 0.5f;
+            if (runner != null)
+            {
+                float energy = ResolveSectionEnergy(runner.CurrentSectionState, runner.CurrentStrain, runner.TargetStrain);
+                float tension = ResolveSectionTension(runner.CurrentSectionState, runner.CurrentStrain, runner.TargetStrain);
+                float brightness = ResolveSectionBrightness(runner.CurrentSectionState, energy, tension);
+                parallaxSystem.SetOrchestrationState(
+                    trackId: runner.ActiveTrackId,
+                    patternSeed: runner.PatternSeed,
+                    sectionType: runner.CurrentSectionState,
+                    songTimeSec: songTime,
+                    beatSec: beatSec,
+                    energy: energy,
+                    tension: tension,
+                    brightness: brightness);
+            }
+
             parallaxSystem.Tick(songTime, isPlaying, phaseBeat, phaseBar, worldScrollPos, beatSec);
         }
 
@@ -312,10 +330,19 @@ namespace ZebraDash
             titleText = CreateLabel("ZebraDash", new Vector2(0.5f, 0.78f), 56, TextAnchor.MiddleCenter);
             CreateLabel("LANDSCAPE Beat Runner", new Vector2(0.5f, 0.70f), 24, TextAnchor.MiddleCenter);
 
-            CreateButton("Play", new Vector2(0.5f, 0.54f), () => LoadScene(SceneLevelSelect));
-            CreateButton("Workbench", new Vector2(0.5f, 0.44f), () => LoadScene(SceneWorkbench));
-            CreateButton("Settings (Tap->Sync)", new Vector2(0.5f, 0.34f), () => LoadScene(SceneWorkbench));
-            CreateButton("Quit", new Vector2(0.5f, 0.24f), QuitApp);
+            GameObject panel = CreatePanel(
+                new Vector2(0.5f, 0.39f),
+                new Vector2(920f, 420f),
+                new Color(0.04f, 0.10f, 0.20f, 0.88f),
+                SpaceMazeArtCatalog.ResolveUiPanelTile(11),
+                tiled: true,
+                name: "MainMenuPanel");
+            RectTransform panelRoot = panel.transform as RectTransform;
+
+            CreateButton("Play", panelRoot, new Vector2(0.5f, 0.78f), () => LoadScene(SceneLevelSelect), new Vector2(620f, 74f));
+            CreateButton("Workbench", panelRoot, new Vector2(0.5f, 0.58f), () => LoadScene(SceneWorkbench), new Vector2(620f, 74f));
+            CreateButton("Settings (Tap->Sync)", panelRoot, new Vector2(0.5f, 0.38f), () => LoadScene(SceneWorkbench), new Vector2(620f, 74f));
+            CreateButton("Quit", panelRoot, new Vector2(0.5f, 0.18f), QuitApp, new Vector2(620f, 74f));
 
             SetStatus(string.IsNullOrWhiteSpace(catalogError) ? "Ready." : catalogError);
         }
@@ -337,21 +364,29 @@ namespace ZebraDash
                 return;
             }
 
-            float startY = 0.62f;
+            GameObject panel = CreatePanel(
+                new Vector2(0.5f, 0.43f),
+                new Vector2(980f, 500f),
+                new Color(0.04f, 0.10f, 0.18f, 0.88f),
+                SpaceMazeArtCatalog.ResolveUiPanelTile(21),
+                tiled: true,
+                name: "LevelSelectPanel");
+            RectTransform panelRoot = panel.transform as RectTransform;
+
             for (int i = 0; i < catalog.tracks.Length; i++)
             {
                 int index = i;
                 MusicTrackEntry track = catalog.tracks[i];
                 string label = $"Level {i + 1:00} - {track.trackId}";
-                CreateButton(label, new Vector2(0.5f, startY - (i * 0.11f)), () =>
+                CreateButton(label, panelRoot, new Vector2(0.5f, 0.84f - (i * 0.18f)), () =>
                 {
                     selectedTrackIndex = index;
                     selectedTrack = catalog.tracks[index];
                     LoadScene(SceneGameplay);
-                });
+                }, new Vector2(700f, 72f));
             }
 
-            CreateButton("Back", new Vector2(0.5f, 0.16f), () => LoadScene(SceneMainMenu));
+            CreateButton("Back", panelRoot, new Vector2(0.5f, 0.12f), () => LoadScene(SceneMainMenu), new Vector2(700f, 72f));
         }
 
         private void BuildGameplay()
@@ -367,7 +402,7 @@ namespace ZebraDash
             }
 
             camera.orthographic = true;
-            camera.orthographicSize = 5f;
+            camera.orthographicSize = 5.8f;
             camera.transform.SetPositionAndRotation(new Vector3(0f, 0f, -10f), Quaternion.identity);
             camera.nearClipPlane = 0.01f;
             camera.farClipPlane = 200f;
@@ -378,13 +413,23 @@ namespace ZebraDash
             playerObject = RuntimeSpriteFactory.Create(
                 "Player",
                 worldRoot.transform,
-                new Vector3(-4f, -1.2f, 0f),
+                new Vector3(-4f, -2.0f, 0f),
                 new Vector3(0.9f, 0.9f, 1f),
+                sprite: SpaceMazeArtCatalog.ResolvePlayerSprite(11),
                 sortingOrder: 26);
-            Renderer playerRenderer = playerObject.GetComponent<Renderer>();
-            if (playerRenderer != null)
+            SpriteRenderer playerSpriteRenderer = playerObject.GetComponent<SpriteRenderer>();
+            if (playerSpriteRenderer != null)
             {
-                playerRenderer.sharedMaterial = GetPlayerMaterial();
+                playerSpriteRenderer.drawMode = SpriteDrawMode.Simple;
+                Sprite sprite = playerSpriteRenderer.sprite;
+                if (sprite != null)
+                {
+                    Vector2 size = sprite.rect.size;
+                    float aspect = size.x / Mathf.Max(1f, size.y);
+                    float height = 1.00f;
+                    float width = Mathf.Clamp(height * aspect, 0.72f, 1.72f);
+                    playerObject.transform.localScale = new Vector3(width, height, 1f);
+                }
             }
 
             runtimeRoot = new GameObject("ZebraDashRuntimeRoot");
@@ -392,13 +437,16 @@ namespace ZebraDash
             beatClock = runtimeRoot.AddComponent<BeatClock>();
             ObstacleSpawner spawner = runtimeRoot.AddComponent<ObstacleSpawner>();
             PlayerController player = playerObject.AddComponent<PlayerController>();
+            PlayerTrailController trail = playerObject.AddComponent<PlayerTrailController>();
             runner = runtimeRoot.AddComponent<LevelRunner>();
             parallaxSystem = runtimeRoot.AddComponent<ParallaxSystem>();
             parallaxSystem.Initialize(worldRoot.transform);
 
             runner.ConfigureScene(camera, playerObject.transform, worldRoot.transform);
             runner.ConfigureDependencies(beatClock, audioSource, spawner, player);
-            BuildLaneGuides(worldRoot.transform, playerObject.transform.position.x);
+            runner.ConfigureParallax(parallaxSystem);
+            trail.SetRunner(runner);
+            BuildLaneGuides(worldRoot.transform, runner.HitLineX);
 
             hudText = CreateLabel("", new Vector2(0.02f, 0.96f), 20, TextAnchor.UpperLeft);
             hudText.rectTransform.anchorMin = new Vector2(0.02f, 0.96f);
@@ -411,7 +459,13 @@ namespace ZebraDash
             CreateButton("Pause", new Vector2(0.92f, 0.94f), TogglePause, new Vector2(160f, 52f));
             CreateButton("Menu", new Vector2(0.80f, 0.94f), () => LoadScene(SceneMainMenu), new Vector2(160f, 52f));
 
-            pausePanel = CreatePanel(new Vector2(0.5f, 0.5f), new Vector2(460f, 310f), new Color(0f, 0f, 0f, 0.75f));
+            pausePanel = CreatePanel(
+                new Vector2(0.5f, 0.5f),
+                new Vector2(560f, 360f),
+                new Color(0.00f, 0.04f, 0.10f, 0.86f),
+                SpaceMazeArtCatalog.ResolveUiPanelTile(31),
+                tiled: true,
+                name: "PausePanel");
             CreateLabel("Paused", pausePanel.transform as RectTransform, new Vector2(0.5f, 0.82f), 36, TextAnchor.MiddleCenter);
             CreateButton("Resume", pausePanel.transform as RectTransform, new Vector2(0.5f, 0.58f), () =>
             {
@@ -489,7 +543,7 @@ namespace ZebraDash
             }
 
             float offsetSec = BeatClock.LoadTrackOffsetSec(selectedTrack.trackId, 0f);
-            runner.StartRun(activeBeatMap, selectedTrack, offsetSec);
+            runner.StartRun(activeBeatMap, selectedTrack, offsetSec, selectedTrackIndex);
             accentHitTimes.Clear();
             if (runner.AccentPulseHitTimes != null)
             {
@@ -515,11 +569,23 @@ namespace ZebraDash
                 $"Score: {lastResult.Score}\n" +
                 $"Max Combo: {lastResult.MaxCombo}\n" +
                 $"Perfect/Good/Miss: {lastResult.Perfect}/{lastResult.Good}/{lastResult.Miss}";
+            if (!lastResult.Success && !string.IsNullOrWhiteSpace(lastResult.FailReason))
+            {
+                body += $"\nReason: {lastResult.FailReason}";
+            }
             CreateLabel(body, new Vector2(0.5f, 0.58f), 28, TextAnchor.MiddleCenter);
 
-            CreateButton("Restart", new Vector2(0.5f, 0.34f), () => LoadScene(SceneGameplay));
-            CreateButton("Next", new Vector2(0.5f, 0.24f), LoadNextLevel);
-            CreateButton("Menu", new Vector2(0.5f, 0.14f), () => LoadScene(SceneMainMenu));
+            GameObject panel = CreatePanel(
+                new Vector2(0.5f, 0.25f),
+                new Vector2(760f, 230f),
+                new Color(0.04f, 0.08f, 0.16f, 0.86f),
+                SpaceMazeArtCatalog.ResolveUiPanelTile(41),
+                tiled: true,
+                name: "ResultsPanel");
+            RectTransform panelRoot = panel.transform as RectTransform;
+            CreateButton("Restart", panelRoot, new Vector2(0.5f, 0.74f), () => LoadScene(SceneGameplay), new Vector2(520f, 68f));
+            CreateButton("Next", panelRoot, new Vector2(0.5f, 0.46f), LoadNextLevel, new Vector2(520f, 68f));
+            CreateButton("Menu", panelRoot, new Vector2(0.5f, 0.18f), () => LoadScene(SceneMainMenu), new Vector2(520f, 68f));
         }
 
         private void LoadNextLevel()
@@ -612,6 +678,10 @@ namespace ZebraDash
             string telegraphText = hasTelegraph
                 ? $"L{teleLane} in {teleLeadSec:F2}s ({teleLead01:P0})"
                 : "-";
+            string motifText = parallaxSystem != null ? parallaxSystem.CurrentMotifId : "-";
+            string envText = parallaxSystem != null
+                ? $"E/T/B:{parallaxSystem.Energy01:F2}/{parallaxSystem.Tension01:F2}/{parallaxSystem.Brightness01:F2}"
+                : "E/T/B:-";
 
             return
                 $"Track: {(selectedTrack != null ? selectedTrack.trackId : "-")}   " +
@@ -624,13 +694,77 @@ namespace ZebraDash
                 $"Mask16: {runner.HazardMaskBar}\n" +
                 $"Judge: {runner.LastJudge}   Combo: {runner.Combo}   Score: {runner.Score}   P/G/M: {runner.PerfectCount}/{runner.GoodCount}/{runner.MissCount}\n" +
                 $"Section: {runner.CurrentSectionState} ({runner.CurrentStrain:F2}/{runner.TargetStrain:F2}) preset:{runner.CurrentPresetId}   " +
-                $"Parallax x{(parallaxSystem != null ? parallaxSystem.SpeedPulseMultiplier : 1f):F2} emx{(parallaxSystem != null ? parallaxSystem.EmissivePulseMultiplier : 1f):F2} warpx{(parallaxSystem != null ? parallaxSystem.WarpPulseMultiplier : 1f):F2}   " +
+                $"Motif:{motifText} {envText}   Parallax x{(parallaxSystem != null ? parallaxSystem.SpeedPulseMultiplier : 1f):F2} emx{(parallaxSystem != null ? parallaxSystem.EmissivePulseMultiplier : 1f):F2} warpx{(parallaxSystem != null ? parallaxSystem.WarpPulseMultiplier : 1f):F2}   " +
                 $"Scroll:{runner.WorldScrollPos:F1}@{runner.WorldScrollUnitsPerSec:F1}   Telegraph:{telegraphText}\n" +
                 $"Next: {runner.NextHazardsDebug}\n" +
                 $"{runner.GridDebugLine}\n" +
                 $"{runner.TwoBarPlanDebug}\n" +
                 $"HazardTiming: {runner.NextHazardTimingDebug}\n" +
+                $"{runner.MazeSyncDebug}\n" +
+                $"SafeDim:{(parallaxSystem != null ? parallaxSystem.SafeZoneDimMultiplier : 0.38f):F2} Outline:{(parallaxSystem != null ? parallaxSystem.HazardOutlineMultiplier : 1.20f):F2} Dust:{(parallaxSystem != null ? parallaxSystem.DustRateMultiplier : 1f):F2} Scan:{(parallaxSystem != null ? parallaxSystem.ScanlineIntensity : 0f):F2} Rotor:{(parallaxSystem != null ? parallaxSystem.RotorSpinRate : 0f):F2}\n" +
                 $"Obs active/pool/created: {runner.ActiveObstacleCount}/{runner.PooledObstacleCount}/{runner.CreatedObstacleCount}";
+        }
+
+        private static float ResolveSectionEnergy(string sectionType, float currentStrain, float targetStrain)
+        {
+            float baseEnergy = Mathf.Clamp01(Mathf.Lerp(currentStrain, targetStrain, 0.55f));
+            if (string.Equals(sectionType, GameplaySectionTypes.Rest, StringComparison.OrdinalIgnoreCase))
+            {
+                return Mathf.Clamp01(baseEnergy * 0.35f);
+            }
+
+            if (string.Equals(sectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase))
+            {
+                return Mathf.Clamp01(0.62f + (baseEnergy * 0.38f));
+            }
+
+            if (string.Equals(sectionType, GameplaySectionTypes.Transition, StringComparison.OrdinalIgnoreCase))
+            {
+                return Mathf.Clamp01(0.42f + (baseEnergy * 0.28f));
+            }
+
+            return Mathf.Clamp01(0.36f + (baseEnergy * 0.40f));
+        }
+
+        private static float ResolveSectionTension(string sectionType, float currentStrain, float targetStrain)
+        {
+            float blend = Mathf.Clamp01(Mathf.Lerp(currentStrain, targetStrain, 0.45f));
+            if (string.Equals(sectionType, GameplaySectionTypes.Rest, StringComparison.OrdinalIgnoreCase))
+            {
+                return Mathf.Clamp01(blend * 0.20f);
+            }
+
+            if (string.Equals(sectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase))
+            {
+                return Mathf.Clamp01(0.68f + (blend * 0.30f));
+            }
+
+            if (string.Equals(sectionType, GameplaySectionTypes.Transition, StringComparison.OrdinalIgnoreCase))
+            {
+                return Mathf.Clamp01(0.45f + (blend * 0.28f));
+            }
+
+            return Mathf.Clamp01(0.30f + (blend * 0.32f));
+        }
+
+        private static float ResolveSectionBrightness(string sectionType, float energy, float tension)
+        {
+            if (string.Equals(sectionType, GameplaySectionTypes.Rest, StringComparison.OrdinalIgnoreCase))
+            {
+                return Mathf.Clamp01(0.22f + (energy * 0.35f));
+            }
+
+            if (string.Equals(sectionType, GameplaySectionTypes.Drop, StringComparison.OrdinalIgnoreCase))
+            {
+                return Mathf.Clamp01(0.48f + (energy * 0.28f) + (tension * 0.20f));
+            }
+
+            if (string.Equals(sectionType, GameplaySectionTypes.Transition, StringComparison.OrdinalIgnoreCase))
+            {
+                return Mathf.Clamp01(0.36f + (energy * 0.24f) + (tension * 0.10f));
+            }
+
+            return Mathf.Clamp01(0.34f + (energy * 0.30f));
         }
 
         private void LoadScene(string sceneName)
@@ -867,54 +1001,127 @@ namespace ZebraDash
                 return;
             }
 
+            CreateWorldQuad(
+                "MazeCeilingOccluder",
+                worldRoot,
+                new Vector3(0f, 3.7f, -1.65f),
+                new Vector3(38f, 2.9f, 1f),
+                new Color(0.02f, 0.05f, 0.09f, 0.34f),
+                transparent: true,
+                sortingOrder: 11);
+            CreateWorldQuad(
+                "MazeFloorOccluder",
+                worldRoot,
+                new Vector3(0f, -3.7f, -1.65f),
+                new Vector3(38f, 2.9f, 1f),
+                new Color(0.02f, 0.05f, 0.09f, 0.34f),
+                transparent: true,
+                sortingOrder: 11);
+            CreateWorldQuad(
+                "MazeCoreBand",
+                worldRoot,
+                new Vector3(0f, 0f, -1.62f),
+                new Vector3(38f, 4.9f, 1f),
+                new Color(0.08f, 0.16f, 0.24f, 0.18f),
+                transparent: true,
+                sortingOrder: 11);
+            CreateWorldQuad(
+                "MazeCeilingEdge",
+                worldRoot,
+                new Vector3(0f, 2.55f, -1.55f),
+                new Vector3(38f, 0.18f, 1f),
+                new Color(0.30f, 0.80f, 0.95f, 0.46f),
+                transparent: true,
+                sortingOrder: 14);
+            CreateWorldQuad(
+                "MazeFloorEdge",
+                worldRoot,
+                new Vector3(0f, -2.55f, -1.55f),
+                new Vector3(38f, 0.18f, 1f),
+                new Color(0.30f, 0.80f, 0.95f, 0.46f),
+                transparent: true,
+                sortingOrder: 14);
+            CreateWorldQuad(
+                "MazeCeilingDanger",
+                worldRoot,
+                new Vector3(0f, 2.84f, -1.52f),
+                new Vector3(38f, 0.22f, 1f),
+                new Color(0.96f, 0.42f, 0.36f, 0.42f),
+                transparent: true,
+                sortingOrder: 14);
+            CreateWorldQuad(
+                "MazeFloorDanger",
+                worldRoot,
+                new Vector3(0f, -2.84f, -1.52f),
+                new Vector3(38f, 0.22f, 1f),
+                new Color(0.96f, 0.42f, 0.36f, 0.42f),
+                transparent: true,
+                sortingOrder: 14);
+            CreateWorldQuad(
+                "MazeCeilingInner",
+                worldRoot,
+                new Vector3(0f, 1.92f, -1.58f),
+                new Vector3(38f, 0.42f, 1f),
+                new Color(0.14f, 0.30f, 0.46f, 0.30f),
+                transparent: true,
+                sortingOrder: 13);
+            CreateWorldQuad(
+                "MazeFloorInner",
+                worldRoot,
+                new Vector3(0f, -1.92f, -1.58f),
+                new Vector3(38f, 0.42f, 1f),
+                new Color(0.14f, 0.30f, 0.46f, 0.30f),
+                transparent: true,
+                sortingOrder: 14);
+
             safeZoneRenderer = CreateWorldQuad(
                 "SafeZone",
                 worldRoot,
-                new Vector3(hitX + 1.2f, 0f, -1.7f),
-                new Vector3(5.2f, 10.6f, 1f),
-                new Color(0.03f, 0.08f, 0.13f, 0.34f),
+                new Vector3(hitX + 0.3f, 0f, -1.7f),
+                new Vector3(4.4f, 4.6f, 1f),
+                new Color(0.04f, 0.10f, 0.16f, 0.14f),
                 transparent: true,
                 sortingOrder: 10);
             laneTelegraphLowerRenderer = CreateWorldQuad(
                 "LaneTelegraphLower",
                 worldRoot,
-                new Vector3(2.6f, -1.2f, -1.5f),
-                new Vector3(27f, 0.62f, 1f),
-                new Color(0.22f, 0.92f, 1f, 0.02f),
+                new Vector3(2.6f, -2.0f, -1.5f),
+                new Vector3(27f, 0.48f, 1f),
+                new Color(0.22f, 0.92f, 1f, 0.005f),
                 transparent: true,
                 sortingOrder: 13);
             laneTelegraphUpperRenderer = CreateWorldQuad(
                 "LaneTelegraphUpper",
                 worldRoot,
-                new Vector3(2.6f, 1.2f, -1.5f),
-                new Vector3(27f, 0.62f, 1f),
-                new Color(1f, 0.52f, 0.88f, 0.02f),
+                new Vector3(2.6f, 2.0f, -1.5f),
+                new Vector3(27f, 0.48f, 1f),
+                new Color(1f, 0.52f, 0.88f, 0.005f),
                 transparent: true,
                 sortingOrder: 13);
             laneLowerRenderer = CreateWorldQuad(
                 "LaneLower",
                 worldRoot,
-                new Vector3(0f, -1.2f, -1.6f),
-                new Vector3(36f, 0.10f, 1f),
-                new Color(0.32f, 0.56f, 0.82f, 0.62f),
+                new Vector3(0f, -2.0f, -1.6f),
+                new Vector3(36f, 0.08f, 1f),
+                new Color(0.14f, 0.58f, 0.92f, 0.44f),
                 transparent: true,
                 sortingOrder: 12);
             laneUpperRenderer = CreateWorldQuad(
                 "LaneUpper",
                 worldRoot,
-                new Vector3(0f, 1.2f, -1.6f),
-                new Vector3(36f, 0.10f, 1f),
-                new Color(0.32f, 0.56f, 0.82f, 0.62f),
+                new Vector3(0f, 2.0f, -1.6f),
+                new Vector3(36f, 0.08f, 1f),
+                new Color(0.14f, 0.58f, 0.92f, 0.44f),
                 transparent: true,
                 sortingOrder: 12);
             hitLineRenderer = CreateWorldQuad(
                 "HitLine",
                 worldRoot,
-                new Vector3(hitX, 0f, 0.6f),
-                new Vector3(0.10f, 3.4f, 1f),
-                new Color(0.98f, 0.99f, 1f, 0.84f),
+                new Vector3(hitX, 0f, 0.8f),
+                new Vector3(0.032f, 9.6f, 1f),
+                new Color(0.90f, 0.98f, 1f, 0.56f),
                 transparent: true,
-                sortingOrder: 18);
+                sortingOrder: 40);
         }
 
         private static Renderer CreateWorldQuad(
@@ -924,14 +1131,22 @@ namespace ZebraDash
             Vector3 localScale,
             Color color,
             bool transparent,
-            int sortingOrder)
+            int sortingOrder,
+            Sprite sprite = null)
         {
             GameObject quad = RuntimeSpriteFactory.Create(
                 name,
                 parent,
                 localPosition,
                 localScale,
+                sprite: sprite,
                 sortingOrder: sortingOrder);
+            SpriteRenderer spriteRenderer = quad.GetComponent<SpriteRenderer>();
+            if (spriteRenderer != null)
+            {
+                spriteRenderer.drawMode = SpriteDrawMode.Tiled;
+                spriteRenderer.size = Vector2.one;
+            }
 
             Renderer renderer = quad.GetComponent<Renderer>();
             if (renderer != null)
@@ -951,40 +1166,42 @@ namespace ZebraDash
 
             float beatPulse = PulseEnvelope(runner.PhaseBeat, 0.10f);
             float accentScale = parallaxSystem != null ? (parallaxSystem.EmissivePulseMultiplier - 1f) : 0f;
+            float outlineMul = parallaxSystem != null ? parallaxSystem.HazardOutlineMultiplier : 1.2f;
+            float safeDim = parallaxSystem != null ? parallaxSystem.SafeZoneDimMultiplier : 0.38f;
             bool hasTelegraph = runner.TryGetTelegraph(out int telegraphLane, out _, out float telegraphLead01);
             float telegraphBoost = hasTelegraph ? Mathf.Lerp(0.14f, 0.70f, telegraphLead01) : 0f;
 
-            Color lowerBase = new Color(0.32f, 0.56f, 0.82f, 0.50f);
-            Color upperBase = new Color(0.32f, 0.56f, 0.82f, 0.50f);
+            Color lowerBase = new Color(0.32f, 0.56f, 0.82f, 0.62f);
+            Color upperBase = new Color(0.32f, 0.56f, 0.82f, 0.62f);
             if (hasTelegraph)
             {
                 lowerBase = telegraphLane == 0
                     ? new Color(0.22f, 0.92f, 1f, 0.62f)
-                    : new Color(0.22f, 0.50f, 0.72f, 0.34f);
+                    : new Color(0.22f, 0.50f, 0.72f, 0.30f);
                 upperBase = telegraphLane == 1
                     ? new Color(1f, 0.52f, 0.88f, 0.62f)
-                    : new Color(0.45f, 0.38f, 0.58f, 0.34f);
+                    : new Color(0.45f, 0.38f, 0.58f, 0.30f);
             }
 
-            ApplyPulseColor(laneLowerRenderer, lowerBase, beatPulse, accentScale, 0.18f + (telegraphLane == 0 ? telegraphBoost * 0.24f : 0f));
-            ApplyPulseColor(laneUpperRenderer, upperBase, beatPulse, accentScale, 0.18f + (telegraphLane == 1 ? telegraphBoost * 0.24f : 0f));
-            ApplyPulseColor(hitLineRenderer, new Color(0.98f, 0.99f, 1f, 0.74f), beatPulse, accentScale, 0.28f + (telegraphBoost * 0.10f));
+            ApplyPulseColor(laneLowerRenderer, lowerBase, beatPulse, accentScale, (0.24f + (telegraphLane == 0 ? telegraphBoost * 0.30f : 0f)) * outlineMul);
+            ApplyPulseColor(laneUpperRenderer, upperBase, beatPulse, accentScale, (0.24f + (telegraphLane == 1 ? telegraphBoost * 0.30f : 0f)) * outlineMul);
+            ApplyPulseColor(hitLineRenderer, new Color(0.82f, 0.96f, 1f, 0.58f), beatPulse, accentScale, (0.24f + (telegraphBoost * 0.09f)) * outlineMul);
 
             if (safeZoneRenderer != null && safeZoneRenderer.material != null)
             {
-                float alpha = 0.30f + (beatPulse * 0.06f) + (telegraphBoost * 0.10f);
+                float alpha = (safeDim * 0.56f) + (beatPulse * 0.02f) + (telegraphBoost * 0.05f);
                 RenderMaterialUtils.ApplyColor(safeZoneRenderer.material, new Color(0.03f, 0.08f, 0.13f, Mathf.Clamp01(alpha)));
             }
 
             if (laneTelegraphLowerRenderer != null && laneTelegraphLowerRenderer.material != null)
             {
-                float lowerAlpha = telegraphLane == 0 ? (0.06f + (telegraphBoost * 0.48f)) : 0.02f;
+                float lowerAlpha = telegraphLane == 0 ? (0.10f + (telegraphBoost * 0.60f)) : 0.03f;
                 RenderMaterialUtils.ApplyColor(laneTelegraphLowerRenderer.material, new Color(0.22f, 0.92f, 1f, lowerAlpha));
             }
 
             if (laneTelegraphUpperRenderer != null && laneTelegraphUpperRenderer.material != null)
             {
-                float upperAlpha = telegraphLane == 1 ? (0.06f + (telegraphBoost * 0.48f)) : 0.02f;
+                float upperAlpha = telegraphLane == 1 ? (0.10f + (telegraphBoost * 0.60f)) : 0.03f;
                 RenderMaterialUtils.ApplyColor(laneTelegraphUpperRenderer.material, new Color(1f, 0.52f, 0.88f, upperAlpha));
             }
         }
@@ -1064,7 +1281,15 @@ namespace ZebraDash
                 return;
             }
 
-            CreateImage(new Vector2(0.5f, 0.5f), new Vector2(5000f, 5000f), color);
+            int seed = SceneManager.GetActiveScene().name.GetHashCode();
+            Sprite tile = SpaceMazeArtCatalog.ResolveUiBackdropTile(seed);
+            CreateImage(
+                new Vector2(0.5f, 0.5f),
+                new Vector2(5000f, 5000f),
+                color,
+                tile,
+                tiled: tile != null,
+                name: "Backdrop");
         }
 
         private Text CreateLabel(string text, Vector2 anchor, int fontSize, TextAnchor align)
@@ -1094,10 +1319,10 @@ namespace ZebraDash
             return label;
         }
 
-        private GameObject CreatePanel(Vector2 anchor, Vector2 size, Color color)
+        private GameObject CreatePanel(Vector2 anchor, Vector2 size, Color color, Sprite sprite = null, bool tiled = false, string name = "Panel")
         {
             RectTransform root = uiRoot;
-            GameObject go = new GameObject("Panel");
+            GameObject go = new GameObject(name);
             go.transform.SetParent(root, false);
             RectTransform rt = go.AddComponent<RectTransform>();
             rt.anchorMin = anchor;
@@ -1106,12 +1331,17 @@ namespace ZebraDash
             rt.sizeDelta = size;
             Image image = go.AddComponent<Image>();
             image.color = color;
+            if (sprite != null)
+            {
+                image.sprite = sprite;
+                image.type = tiled ? Image.Type.Tiled : Image.Type.Simple;
+            }
             return go;
         }
 
-        private Image CreateImage(Vector2 anchor, Vector2 size, Color color)
+        private Image CreateImage(Vector2 anchor, Vector2 size, Color color, Sprite sprite = null, bool tiled = false, string name = "Image")
         {
-            GameObject go = new GameObject("Image");
+            GameObject go = new GameObject(name);
             go.transform.SetParent(uiRoot, false);
             RectTransform rt = go.AddComponent<RectTransform>();
             rt.anchorMin = anchor;
@@ -1120,6 +1350,12 @@ namespace ZebraDash
             rt.sizeDelta = size;
             Image image = go.AddComponent<Image>();
             image.color = color;
+            if (sprite != null)
+            {
+                image.sprite = sprite;
+                image.type = tiled ? Image.Type.Tiled : Image.Type.Simple;
+            }
+
             return image;
         }
 
@@ -1140,13 +1376,20 @@ namespace ZebraDash
             rt.sizeDelta = size ?? new Vector2(380f, 66f);
 
             Image image = go.AddComponent<Image>();
-            image.color = new Color(0.17f, 0.24f, 0.35f, 0.95f);
+            Sprite buttonTile = SpaceMazeArtCatalog.ResolveUiButtonTile(label, label.GetHashCode());
+            Color baseColor = new Color(0.15f, 0.24f, 0.36f, 0.94f);
+            image.color = baseColor;
+            if (buttonTile != null)
+            {
+                image.sprite = buttonTile;
+                image.type = Image.Type.Tiled;
+            }
 
             Button button = go.AddComponent<Button>();
             ColorBlock colors = button.colors;
-            colors.normalColor = new Color(0.17f, 0.24f, 0.35f, 0.95f);
-            colors.highlightedColor = new Color(0.22f, 0.32f, 0.44f, 1f);
-            colors.pressedColor = new Color(0.12f, 0.18f, 0.27f, 1f);
+            colors.normalColor = baseColor;
+            colors.highlightedColor = new Color(0.24f, 0.36f, 0.48f, 1f);
+            colors.pressedColor = new Color(0.10f, 0.16f, 0.24f, 1f);
             button.colors = colors;
             button.onClick.AddListener(() => onClick?.Invoke());
 
@@ -1184,15 +1427,5 @@ namespace ZebraDash
 #endif
         }
 
-        private static Material GetPlayerMaterial()
-        {
-            if (cachedPlayerMaterial != null)
-            {
-                return cachedPlayerMaterial;
-            }
-
-            cachedPlayerMaterial = RenderMaterialUtils.CreateSolidMaterial(new Color(0.95f, 0.96f, 0.98f, 1f));
-            return cachedPlayerMaterial;
-        }
     }
 }

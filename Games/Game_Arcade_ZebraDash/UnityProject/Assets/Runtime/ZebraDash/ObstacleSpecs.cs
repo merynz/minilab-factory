@@ -62,7 +62,7 @@ namespace ZebraDash
             motionLaw: "x=lerp(spawnX,hitX,tau), y=laneY",
             telegraphLaw: "lock band + hit tick",
             defaultStyle: GameplayPresentationKinds.Straight,
-            baseTravelSec: 1.25f,
+            baseTravelSec: 1.08f,
             telegraphLeadBeats: 1f,
             telegraphLeadMinSec: 0.35f,
             postHitBeatFactor: 0.20f,
@@ -80,7 +80,7 @@ namespace ZebraDash
                 "Linear lane approach",
                 "Lane lock band + hit tick",
                 GameplayPresentationKinds.Straight,
-                1.25f, 1f, 0.35f,
+                1.02f, 1f, 0.35f,
                 0.20f, 0.08f, 0.18f,
                 0.60f, 0.12f, 2.2f),
 
@@ -90,7 +90,7 @@ namespace ZebraDash
                 "Linear + diagonal flavor",
                 "Strong lock band + ring tick",
                 GameplayPresentationKinds.Diagonal,
-                1.35f, 1f, 0.35f,
+                1.12f, 1f, 0.35f,
                 0.20f, 0.08f, 0.18f,
                 0.90f, 0.20f, 2.8f),
 
@@ -100,7 +100,7 @@ namespace ZebraDash
                 "Linear pair with lane alternation",
                 "Dual telegraph bands",
                 GameplayPresentationKinds.Diagonal,
-                1.25f, 1f, 0.35f,
+                1.00f, 1f, 0.35f,
                 0.20f, 0.08f, 0.18f,
                 0.80f, 0.15f, 2.4f),
 
@@ -110,7 +110,7 @@ namespace ZebraDash
                 "Linear rise flavor",
                 "Lane break telegraph",
                 GameplayPresentationKinds.Rise,
-                1.30f, 1f, 0.35f,
+                1.04f, 1f, 0.35f,
                 0.20f, 0.08f, 0.18f,
                 0.65f, 0.10f, 2.0f),
 
@@ -120,7 +120,7 @@ namespace ZebraDash
                 "Linear approach then hold",
                 "Progress lock bar",
                 GameplayPresentationKinds.Drop,
-                1.35f, 1f, 0.35f,
+                1.12f, 1f, 0.35f,
                 0.20f, 0.08f, 0.18f,
                 0.30f, 0.00f, 0.00f),
 
@@ -130,7 +130,7 @@ namespace ZebraDash
                 "Linear approach + release tick",
                 "Progress + release cue",
                 GameplayPresentationKinds.Drop,
-                1.35f, 1f, 0.35f,
+                1.12f, 1f, 0.35f,
                 0.20f, 0.08f, 0.18f,
                 0.35f, 0.00f, 0.00f),
 
@@ -140,7 +140,7 @@ namespace ZebraDash
                 "Linear diagonal gate",
                 "Cross lane dual telegraph",
                 GameplayPresentationKinds.Diagonal,
-                1.32f, 1f, 0.35f,
+                1.08f, 1f, 0.35f,
                 0.20f, 0.08f, 0.18f,
                 0.95f, 0.12f, 2.6f),
 
@@ -150,9 +150,29 @@ namespace ZebraDash
                 "Short linear pop approach",
                 "Micro telegraph near hitline",
                 GameplayPresentationKinds.Pop,
-                1.18f, 1f, 0.35f,
+                0.88f, 1f, 0.35f,
                 0.20f, 0.08f, 0.18f,
                 0.45f, 0.06f, 2.0f),
+
+            [GameplayArchetypes.SpinnerSentinel] = new ObstacleSpec(
+                GameplayArchetypes.SpinnerSentinel,
+                "AvoidBlockedLaneAtHit(Spinner)",
+                "Linear approach + local spin flavor",
+                "Spin-up telegraph + tick",
+                GameplayPresentationKinds.Diagonal,
+                1.06f, 1.20f, 0.35f,
+                0.20f, 0.08f, 0.18f,
+                0.72f, 0.14f, 2.6f),
+
+            [GameplayArchetypes.RisingWall] = new ObstacleSpec(
+                GameplayArchetypes.RisingWall,
+                "AvoidBlockedLaneAtHit(RisingWall)",
+                "Linear floor rise to hitline",
+                "Floor warning stripes + tick",
+                GameplayPresentationKinds.Drop,
+                1.10f, 1f, 0.35f,
+                0.20f, 0.08f, 0.18f,
+                0.30f, 0.00f, 0.00f),
 
             [GameplayArchetypes.FakeoutGhost] = new ObstacleSpec(
                 GameplayArchetypes.FakeoutGhost,
@@ -160,7 +180,7 @@ namespace ZebraDash
                 "Ghost linear dissolve",
                 "Ghost telegraph",
                 GameplayPresentationKinds.Pop,
-                1.05f, 1f, 0.35f,
+                0.92f, 1f, 0.35f,
                 0.20f, 0.08f, 0.18f,
                 0.50f, 0.08f, 1.8f),
 
@@ -187,7 +207,7 @@ namespace ZebraDash
 
         public static float ComputeMinVisibleSec(float beatSec)
         {
-            return Mathf.Clamp(0.90f * Mathf.Max(0.0001f, beatSec), 0.45f, 0.85f);
+            return Mathf.Clamp(1.00f * Mathf.Max(0.0001f, beatSec), 0.54f, 0.90f);
         }
 
         public static float ResolveTravelSec(GameplayPatternEvent evt, float beatSec)
@@ -203,7 +223,8 @@ namespace ZebraDash
         {
             ObstacleSpec spec = Resolve(evt != null ? evt.archetype : null);
             float beatLead = spec.TelegraphLeadBeats * Mathf.Max(0.0001f, beatSec);
-            return Mathf.Max(beatLead, spec.TelegraphLeadMinSec);
+            float readableLead = Mathf.Max(0.70f, 1.20f * beatSec);
+            return Mathf.Max(Mathf.Max(beatLead, spec.TelegraphLeadMinSec), readableLead);
         }
 
         public static float ResolvePostHitSec(string archetype, float beatSec)
