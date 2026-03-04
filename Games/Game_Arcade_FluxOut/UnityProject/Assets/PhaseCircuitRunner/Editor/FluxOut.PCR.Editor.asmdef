@@ -1,0 +1,20 @@
+{
+  "name": "FluxOut.PCR.Editor",
+  "rootNamespace": "FluxOut.PCR.Editor",
+  "references": [
+    "FluxOut.PCR.Runtime",
+    "MiniLab.Core",
+    "Unity.RenderPipelines.Universal.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

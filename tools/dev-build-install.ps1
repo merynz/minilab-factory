@@ -1,7 +1,7 @@
 param(
-    [string]$GamePath = "Games/Game_Arcade_ZebraDash",
-    [string]$ProjectPath = "Games/Game_Arcade_ZebraDash/UnityProject",
-    [string]$OutputName = "zebradash-dev.apk"
+    [string]$GamePath = "",
+    [string]$ProjectPath = "",
+    [string]$OutputName = "minilab-dev.apk"
 )
 
 Set-StrictMode -Version Latest
@@ -96,6 +96,23 @@ function Get-AndroidPackageName([string]$StorePath) {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($GamePath)) {
+    $detectedGame = Get-ChildItem -Path (Join-Path $repoRoot "Games") -Directory -Filter "Game_*" -ErrorAction SilentlyContinue |
+        Sort-Object Name |
+        Select-Object -First 1
+    if ($null -eq $detectedGame) {
+        throw "GamePath not provided and no Games/Game_* directory found."
+    }
+
+    $GamePath = [System.IO.Path]::GetRelativePath($repoRoot, $detectedGame.FullName).Replace('\', '/')
+    Write-Host "Auto-detected GamePath: $GamePath"
+}
+
+if ([string]::IsNullOrWhiteSpace($ProjectPath)) {
+    $ProjectPath = "$GamePath/UnityProject"
+    Write-Host "Auto-detected ProjectPath: $ProjectPath"
+}
+
 $resolvedProjectPath = Resolve-CanonicalPath -InputPath $ProjectPath -RepoRoot $repoRoot
 $resolvedGamePath = Resolve-CanonicalPath -InputPath $GamePath -RepoRoot $repoRoot
 
@@ -109,14 +126,13 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "WARN: Working tree is dirty. Continuing dev build/install."
 }
 
-& (Join-Path $PSScriptRoot "analyze-audio.ps1") -GamePath $resolvedGamePath
-if (-not $?) {
-    throw "analyze-audio failed"
-}
-
-& (Join-Path $PSScriptRoot "sync-zebradash-content.ps1") -ProjectPath $resolvedProjectPath
-if (-not $?) {
-    throw "sync-zebradash-content failed"
+if ((Split-Path -Leaf $resolvedGamePath) -ieq "Game_Arcade_FluxOut") {
+    Write-Host "Skipping analyze-audio for FluxOut (runner core does not use ZebraDash beatmap levels)."
+} else {
+    & (Join-Path $PSScriptRoot "analyze-audio.ps1") -GamePath $resolvedGamePath
+    if (-not $?) {
+        throw "analyze-audio failed"
+    }
 }
 
 & (Join-Path $PSScriptRoot "build-android-apk.ps1") -ProjectPath $resolvedProjectPath -OutputName $OutputName
@@ -142,9 +158,13 @@ if ([string]::IsNullOrWhiteSpace($adbPath)) {
 }
 
 Write-Host "Launching app package: $packageName"
-& $adbPath shell monkey -p $packageName -c android.intent.category.LAUNCHER 1 | Out-Null
+& $adbPath shell am start -n "$packageName/com.unity3d.player.UnityPlayerGameActivity" | Out-Null
 if ($LASTEXITCODE -ne 0) {
-    throw "adb launch failed"
+    Write-Host "WARN: am start failed, falling back to monkey launch."
+    & $adbPath shell monkey -p $packageName -c android.intent.category.LAUNCHER 1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "adb launch failed"
+    }
 }
 
 Restore-UnitySettingsNoise -RepoRoot $repoRoot -ResolvedProjectPath $resolvedProjectPath

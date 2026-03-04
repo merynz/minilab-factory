@@ -138,8 +138,19 @@ if ([string]::IsNullOrWhiteSpace($javaPath)) {
 }
 
 $rubyPath = Resolve-Executable -CommandName "ruby" -FallbackPaths @()
-$bundlePath = Resolve-Executable -CommandName "bundle" -FallbackPaths @()
-$fastlanePath = Resolve-Executable -CommandName "fastlane" -FallbackPaths @()
+$bundlePath = Resolve-Executable -CommandName "bundle" -FallbackPaths @(
+    "C:\Ruby33-x64\bin\bundle.bat",
+    "C:\Ruby33-x64\bin\bundle"
+)
+$fastlanePath = Resolve-Executable -CommandName "fastlane" -FallbackPaths @(
+    "C:\Ruby33-x64\bin\fastlane.bat",
+    "C:\Ruby33-x64\bin\fastlane"
+)
+if ([string]::IsNullOrWhiteSpace($rubyPath)) {
+    $rubyPath = Resolve-Executable -CommandName "ruby" -FallbackPaths @(
+        "C:\Ruby33-x64\bin\ruby.exe"
+    )
+}
 
 $toolingMissing = @()
 if ([string]::IsNullOrWhiteSpace($rubyPath)) { $toolingMissing += "ruby" }

@@ -48,9 +48,11 @@ google-services.json
 
 # Local audio workspace (not committed)
 Games/*/AudioLocal/
-Games/*/UnityProject/Assets/StreamingAssets/ZebraDash/Audio/
-Games/*/UnityProject/Assets/StreamingAssets/ZebraDash/Levels/
 Games/*/UnityProject/Assets/StreamingAssets/
 Games/*/UnityProject/Assets/StreamingAssets.meta
-Games/*/UnityProject/Assets/Resources/ZebraDashArtLocal/
-Games/*/UnityProject/Assets/Resources/ZebraDashArtLocal.meta
+Games/*/UnityProject/Assets/Resources/*ArtLocal/
+Games/*/UnityProject/Assets/Resources/*ArtLocal.meta
+
+# Local visual-analysis scratch
+tmp_video_*/
+tmp_tileset_*.png

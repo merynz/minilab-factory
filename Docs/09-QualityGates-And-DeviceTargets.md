@@ -39,3 +39,13 @@ Ship/No-Ship rules are objective and shared across templates.
 - Defense:
   - 3 waves + one upgrade + one rewarded path.
 
+## Automation Hooks
+
+- Local smoke automation:
+  - `tools/smoke-android.ps1`
+  - output:
+    - `BuildArtifacts/QA/smoke-android-report.txt`
+    - `BuildArtifacts/QA/smoke-android-logcat.txt`
+- CI smoke automation:
+  - `.github/workflows/mobile-smoke-test.yml`
+  - self-hosted windows runner + connected device/emulator gerekir.

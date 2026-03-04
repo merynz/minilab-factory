@@ -1,9 +1,11 @@
 MiniLab Repo Tree
-Generated: 2026-02-22 04:18:31 +03:00
+Generated: 2026-03-01 19:53:08 +03:00
 
 Files:
  - .github/pull_request_template.md
  - .github/workflows/ios-dry-run.yml
+ - .github/workflows/mobile-release.yml
+ - .github/workflows/mobile-smoke-test.yml
  - .github/workflows/pr-check.yml
  - .gitignore
  - Docs/00-ReviewPack.md
@@ -34,80 +36,14 @@ Files:
  - Docs/INDEX.md
  - fastlane/Appfile
  - fastlane/Fastfile
- - Games/Game_Arcade_ZebraDash/AudioLocal/4. RoboTrance.wav
- - Games/Game_Arcade_ZebraDash/AudioLocal/9. Electro Dance Mania.wav
- - Games/Game_Arcade_ZebraDash/Content/Levels/level01_electro.json
- - Games/Game_Arcade_ZebraDash/Content/Levels/level02_robo.json
- - Games/Game_Arcade_ZebraDash/Content/Levels/music_catalog.json
- - Games/Game_Arcade_ZebraDash/README.md
- - Games/Game_Arcade_ZebraDash/Runtime/README.md
- - Games/Game_Arcade_ZebraDash/store.yaml
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/DefaultVolumeProfile.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/DefaultVolumeProfile.asset.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Editor.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Editor/TemplateSetup.cs
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Editor/TemplateSetup.cs.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/BeatmapRuntimeBootstrap.cs
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/BeatmapRuntimeBootstrap.cs.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/BeatmapWorkbenchController.cs
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/BeatmapWorkbenchController.cs.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/LevelRunner.cs
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/LevelRunner.cs.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/MovingObstacle.cs
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/MovingObstacle.cs.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/ObstacleKinematics.cs
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/ObstacleKinematics.cs.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/ObstacleSpawner.cs
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/ObstacleSpawner.cs.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/PlayerController.cs
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/PlayerController.cs.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/PrefabRegistry.cs
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/PrefabRegistry.cs.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/ZebraDashRuntimeModels.cs
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Runtime/ZebraDash/ZebraDashRuntimeModels.cs.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Scenes.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Scenes/BeatmapWorkbench.unity
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Scenes/BeatmapWorkbench.unity.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Scenes/Bootstrap.unity
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Scenes/Bootstrap.unity.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Settings.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Settings/Core.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Settings/Core/CoreSettings.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Settings/Core/CoreSettings.asset.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Settings/Rendering.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Settings/Rendering/Renderer2D.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Settings/Rendering/Renderer2D.asset.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Settings/Rendering/URP2D.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/Settings/Rendering/URP2D.asset.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/UniversalRenderPipelineGlobalSettings.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/Assets/UniversalRenderPipelineGlobalSettings.asset.meta
- - Games/Game_Arcade_ZebraDash/UnityProject/Packages/manifest.json
- - Games/Game_Arcade_ZebraDash/UnityProject/Packages/packages-lock.json
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/AudioManager.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/ClusterInputManager.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/DynamicsManager.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/EditorBuildSettings.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/EditorSettings.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/GraphicsSettings.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/InputManager.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/MemorySettings.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/MultiplayerManager.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/NavMeshAreas.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/Physics2DSettings.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/PresetManager.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/ProjectSettings.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/ProjectVersion.txt
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/QualitySettings.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/SceneTemplateSettings.json
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/ShaderGraphSettings.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/TagManager.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/TimeManager.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/UnityConnectSettings.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/VersionControlSettings.asset
- - Games/Game_Arcade_ZebraDash/UnityProject/ProjectSettings/VFXManager.asset
  - Games/store.template.yaml
+ - Gemfile
+ - OneClick-DeployPlatform.cmd
+ - OneClick-DevBuildInstall.cmd
+ - OneClick-PushBranch.cmd
+ - OneClick-ReleaseAndroidInternal.cmd
+ - OneClick-ReleaseIOSInternal.cmd
+ - OneClick-SmokeAndroid.cmd
  - Packages/MiniLab.Core/Editor.meta
  - Packages/MiniLab.Core/Editor/Build.meta
  - Packages/MiniLab.Core/Editor/BuildTools.meta
@@ -155,6 +91,8 @@ Files:
  - Packages/MiniLab.Core/Runtime/Rhythm.meta
  - Packages/MiniLab.Core/Runtime/Rhythm/BeatClock.cs
  - Packages/MiniLab.Core/Runtime/Rhythm/BeatClock.cs.meta
+ - Packages/MiniLab.Core/Runtime/Rhythm/BeatGrid.cs
+ - Packages/MiniLab.Core/Runtime/Rhythm/BeatGrid.cs.meta
  - Packages/MiniLab.Core/Runtime/Rhythm/BeatMap.schema.json
  - Packages/MiniLab.Core/Runtime/Rhythm/BeatMap.schema.json.meta
  - Packages/MiniLab.Core/Runtime/Rhythm/BeatMapJson.cs
@@ -309,6 +247,197 @@ Files:
  - Templates/PuzzleTemplate/UnityProject/ProjectSettings/UnityConnectSettings.asset
  - Templates/PuzzleTemplate/UnityProject/ProjectSettings/VersionControlSettings.asset
  - Templates/PuzzleTemplate/UnityProject/ProjectSettings/VFXManager.asset
+ - tmp_tileset_1_indexed.png
+ - tmp_tileset_base_indexed_all.png
+ - tmp_video_frames/cur_001.png
+ - tmp_video_frames/cur_002.png
+ - tmp_video_frames/cur_003.png
+ - tmp_video_frames/cur_004.png
+ - tmp_video_frames/cur_005.png
+ - tmp_video_frames/cur_006.png
+ - tmp_video_frames/cur_007.png
+ - tmp_video_frames/cur_008.png
+ - tmp_video_frames/cur_009.png
+ - tmp_video_frames/cur_010.png
+ - tmp_video_frames/cur_011.png
+ - tmp_video_frames/cur_012.png
+ - tmp_video_frames/cur_013.png
+ - tmp_video_frames/ref_001.png
+ - tmp_video_frames/ref_002.png
+ - tmp_video_frames/ref_003.png
+ - tmp_video_frames/ref_004.png
+ - tmp_video_frames/ref_005.png
+ - tmp_video_frames/ref_006.png
+ - tmp_video_frames/ref_007.png
+ - tmp_video_frames/ref_008.png
+ - tmp_video_frames/ref_009.png
+ - tmp_video_frames/ref_010.png
+ - tmp_video_frames/ref_011.png
+ - tmp_video_frames/ref_012.png
+ - tmp_video_frames/ref_013.png
+ - tmp_video_frames/ref_014.png
+ - tmp_video_frames/ref_015.png
+ - tmp_video_frames/ref_016.png
+ - tmp_video_frames/ref_017.png
+ - tmp_video_frames/ref_018.png
+ - tmp_video_frames/ref_019.png
+ - tmp_video_frames/ref_020.png
+ - tmp_video_frames/ref_021.png
+ - tmp_video_frames/ref_022.png
+ - tmp_video_frames/ref_023.png
+ - tmp_video_frames/ref_024.png
+ - tmp_video_frames/ref_025.png
+ - tmp_video_frames/ref_026.png
+ - tmp_video_frames/ref_027.png
+ - tmp_video_frames/ref_028.png
+ - tmp_video_frames/ref_029.png
+ - tmp_video_frames/ref_030.png
+ - tmp_video_frames/ref_031.png
+ - tmp_video_frames/ref_032.png
+ - tmp_video_frames/ref_033.png
+ - tmp_video_frames/ref_034.png
+ - tmp_video_frames/ref_035.png
+ - tmp_video_frames/ref_036.png
+ - tmp_video_frames/ref_037.png
+ - tmp_video_frames/ref_038.png
+ - tmp_video_frames/ref_039.png
+ - tmp_video_frames/ref_040.png
+ - tmp_video_frames/ref_041.png
+ - tmp_video_frames/ref_042.png
+ - tmp_video_frames/ref_043.png
+ - tmp_video_frames/ref_044.png
+ - tmp_video_frames/ref_045.png
+ - tmp_video_frames/ref_046.png
+ - tmp_video_frames/ref_047.png
+ - tmp_video_frames/ref_048.png
+ - tmp_video_frames/ref_049.png
+ - tmp_video_frames/ref_050.png
+ - tmp_video_frames/ref_051.png
+ - tmp_video_frames/ref_052.png
+ - tmp_video_frames/ref_053.png
+ - tmp_video_frames/ref_054.png
+ - tmp_video_frames/ref_055.png
+ - tmp_video_frames/ref_056.png
+ - tmp_video_frames/ref_057.png
+ - tmp_video_frames/ref_058.png
+ - tmp_video_frames/ref_059.png
+ - tmp_video_issue/frame_0001.png
+ - tmp_video_issue/frame_0002.png
+ - tmp_video_issue/frame_0003.png
+ - tmp_video_issue/frame_0004.png
+ - tmp_video_issue/frame_0005.png
+ - tmp_video_issue/frame_0006.png
+ - tmp_video_issue/frame_0007.png
+ - tmp_video_issue/frame_0008.png
+ - tmp_video_issue/frame_0009.png
+ - tmp_video_issue/frame_0010.png
+ - tmp_video_issue/frame_0011.png
+ - tmp_video_issue/frame_0012.png
+ - tmp_video_issue/frame_0013.png
+ - tmp_video_issue/frame_0014.png
+ - tmp_video_issue/frame_0015.png
+ - tmp_video_issue/frame_0016.png
+ - tmp_video_issue/frame_0017.png
+ - tmp_video_issue/frame_0018.png
+ - tmp_video_issue/frame_0019.png
+ - tmp_video_issue/frame_0020.png
+ - tmp_video_issue/frame_0021.png
+ - tmp_video_issue/frame_0022.png
+ - tmp_video_issue/frame_0023.png
+ - tmp_video_issue/frame_0024.png
+ - tmp_video_issue/frame_0025.png
+ - tmp_video_issue/frame_0026.png
+ - tmp_video_issue/frame_0027.png
+ - tmp_video_issue/frame_0028.png
+ - tmp_video_issue/frame_0029.png
+ - tmp_video_issue/frame_0030.png
+ - tmp_video_issue/frame_0031.png
+ - tmp_video_issue/frame_0032.png
+ - tmp_video_issue/frame_0033.png
+ - tmp_video_issue/frame_0034.png
+ - tmp_video_issue/frame_0035.png
+ - tmp_video_issue/frame_0036.png
+ - tmp_video_issue/frame_0037.png
+ - tmp_video_issue/frame_0038.png
+ - tmp_video_issue/frame_0039.png
+ - tmp_video_issue/frame_0040.png
+ - tmp_video_issue/frame_0041.png
+ - tmp_video_issue/frame_0042.png
+ - tmp_video_issue/frame_0043.png
+ - tmp_video_issue/frame_0044.png
+ - tmp_video_issue/frame_0045.png
+ - tmp_video_issue/frame_0046.png
+ - tmp_video_issue/frame_0047.png
+ - tmp_video_issue/frame_0048.png
+ - tmp_video_issue/frame_0049.png
+ - tmp_video_issue/frame_0050.png
+ - tmp_video_issue/frame_0051.png
+ - tmp_video_issue/frame_0052.png
+ - tmp_video_issue/frame_0053.png
+ - tmp_video_issue/frame_0054.png
+ - tmp_video_issue/frame_0055.png
+ - tmp_video_issue/frame_0056.png
+ - tmp_video_issue/frame_0057.png
+ - tmp_video_issue/frame_0058.png
+ - tmp_video_issue/frame_0059.png
+ - tmp_video_issue/frame_0060.png
+ - tmp_video_issue/frame_0061.png
+ - tmp_video_issue/frame_0062.png
+ - tmp_video_issue/frame_0063.png
+ - tmp_video_issue/frame_0064.png
+ - tmp_video_issue/frame_0065.png
+ - tmp_video_issue/frame_0066.png
+ - tmp_video_issue/frame_0067.png
+ - tmp_video_issue/frame_0068.png
+ - tmp_video_issue/frame_0069.png
+ - tmp_video_issue/frame_0070.png
+ - tmp_video_issue/frame_0071.png
+ - tmp_video_issue/frame_0072.png
+ - tmp_video_issue/frame_0073.png
+ - tmp_video_issue/frame_0074.png
+ - tmp_video_issue/frame_0075.png
+ - tmp_video_issue/frame_0076.png
+ - tmp_video_issue/frame_0077.png
+ - tmp_video_issue/frame_0078.png
+ - tmp_video_issue/frame_0079.png
+ - tmp_video_issue/frame_0080.png
+ - tmp_video_issue/frame_0081.png
+ - tmp_video_issue/frame_0082.png
+ - tmp_video_issue/frame_0083.png
+ - tmp_video_issue/frame_0084.png
+ - tmp_video_issue/frame_0085.png
+ - tmp_video_issue/frame_0086.png
+ - tmp_video_issue/frame_0087.png
+ - tmp_video_issue/frame_0088.png
+ - tmp_video_issue/frame_0089.png
+ - tmp_video_issue/frame_0090.png
+ - tmp_video_issue/frame_0091.png
+ - tmp_video_issue/frame_0092.png
+ - tmp_video_issue/frame_0093.png
+ - tmp_video_issue/frame_0094.png
+ - tmp_video_issue/frame_0095.png
+ - tmp_video_issue/frame_0096.png
+ - tmp_video_issue/frame_0097.png
+ - tmp_video_issue/frame_0098.png
+ - tmp_video_issue/frame_0099.png
+ - tmp_video_issue/frame_0100.png
+ - tmp_video_issue/frame_0101.png
+ - tmp_video_issue/frame_0102.png
+ - tmp_video_issue/frame_0103.png
+ - tmp_video_issue/frame_0104.png
+ - tmp_video_issue/frame_0105.png
+ - tmp_video_issue/frame_0106.png
+ - tmp_video_issue/frame_0107.png
+ - tmp_video_issue/frame_0108.png
+ - tmp_video_issue/frame_0109.png
+ - tmp_video_issue/frame_0110.png
+ - tmp_video_issue/frame_0111.png
+ - tmp_video_issue/frame_0112.png
+ - tmp_video_issue/frame_0113.png
+ - tmp_video_issue/frame_0114.png
+ - tmp_video_issue/frame_0115.png
+ - tmp_video_issue/frame_0116.png
+ - tmp_video_issue/frame_0117.png
  - tools/analyze-audio.ps1
  - tools/bootstrap-template-projects.ps1
  - tools/build-android-apk.ps1
@@ -317,15 +446,24 @@ Files:
  - tools/check-clean-tree.ps1
  - tools/check-docs.ps1
  - tools/check-secrets.ps1
+ - tools/check-store-yaml.ps1
  - tools/check-template-purity.ps1
  - tools/check-tree.ps1
  - tools/check-unity-compile.ps1
+ - tools/deploy-platform.ps1
+ - tools/dev-build-install.ps1
  - tools/doctor.ps1
+ - tools/export-store-metadata.ps1
  - tools/install-android.ps1
  - tools/new-game.ps1
+ - tools/platform-ready.ps1
  - tools/README.md
+ - tools/release-android-internal.ps1
+ - tools/release-ios-internal.ps1
+ - tools/setup-release-tooling.ps1
+ - tools/smoke-android.ps1
  - tools/upload-android-internal.ps1
  - tools/upload-testflight-internal.ps1
  - tools/version-bump.ps1
 
-Total files: 325
+Total files: 463

@@ -50,7 +50,7 @@ if not errorlevel 1 (
   exit /b 0
 )
 
-git commit -m "ZebraDash milestone-2 polish"
+git commit -m "MiniLab milestone-2 polish"
 if errorlevel 1 (
   echo [MiniLab] FAILED: git commit failed.
   pause

@@ -30,6 +30,7 @@ Neden:
   - `APP_STORE_CONNECT_API_KEY_CONTENT`
 - TestFlight upload:
   - macOS workflow icinde `build-ios.ps1` + fastlane lane.
+  - workflow: `.github/workflows/mobile-release.yml` (`platform=ios` veya `both`).
 
 ### C) Unity Cloud Build
 

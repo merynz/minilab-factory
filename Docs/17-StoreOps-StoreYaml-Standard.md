@@ -28,6 +28,5 @@ Each game folder must include exactly one metadata source file:
 ## Validation Command (example)
 
 ```powershell
-yq e '.bundle_id_ios and .application_id_android and .locales."tr-TR" and .locales."en-US"' Games/Game_Arcade_ZebraDash/store.yaml
+yq e '.bundle_id_ios and .application_id_android and .locales."tr-TR" and .locales."en-US"' Games/<GameName>/store.yaml
 ```
-

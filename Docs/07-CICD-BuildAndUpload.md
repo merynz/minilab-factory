@@ -1,6 +1,6 @@
 # 07 - CI/CD Build and Upload
 
-Goal: "tek tus" calisir pipeline. Unity GUI acmadan, deterministik log ve timeout ile.
+Goal: tek tusla calisan pipeline. Unity GUI acmadan, deterministik log ve timeout ile.
 
 ## 0) Doctor (On Kosul)
 
@@ -8,109 +8,169 @@ Goal: "tek tus" calisir pipeline. Unity GUI acmadan, deterministik log ve timeou
 .\tools\doctor.ps1
 ```
 
-Kontrol edilenler:
-- Unity Editor (beklenen `6000.2.6f2`)
-- Unity Android Build Support + SDK/NDK/OpenJDK
-- `adb` ve `java`
-- Ruby/Bundler/Fastlane (upload icin)
-- Play/TestFlight env hazirligi
+Tooling bootstrap (opsiyonel ama onerilen):
 
-`doctor` cikti formati: `PASS / FAIL / SKIP`.
+```powershell
+.\tools\setup-release-tooling.ps1
+```
+
+Secrets env setup:
+
+```powershell
+.\tools\configure-release-secrets.ps1 -PlayJsonPath "<play-json-path>" -AscApiKeyId "<id>" -AscIssuerId "<issuer>" -AscApiKeyFile "<AuthKey.p8>"
+```
 
 ## 1) Android Pipeline (Windows baseline)
 
-### Beatmap uretimi (iki demo track)
+`<GamePath>` formati: `Games/Game_<Genre>_<Codename>`
+
+### Release metadata gate
 
 ```powershell
-.\tools\analyze-audio.ps1 -GamePath "Games/Game_Arcade_ZebraDash" -CopyFromZip
+.\tools\check-store-yaml.ps1 -GamePath "<GamePath>"
 ```
 
-Uretilen dosyalar:
-- `Games/Game_Arcade_ZebraDash/Content/Levels/music_catalog.json`
-- `Games/Game_Arcade_ZebraDash/Content/Levels/level01_electro.json`
-- `Games/Game_Arcade_ZebraDash/Content/Levels/level02_robo.json`
+### Beatmap uretimi
 
-Not:
-- Local audio klasoru: `Games/Game_Arcade_ZebraDash/AudioLocal/` (gitignored)
-- Audio yoksa workbench metronom click ile devam eder.
+```powershell
+.\tools\analyze-audio.ps1 -GamePath "<GamePath>"
+```
 
 ### Compile check (hang-proof)
 
 ```powershell
-.\tools\check-unity-compile.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject"
+.\tools\check-unity-compile.ps1 -ProjectPath "<GamePath>/UnityProject"
 ```
 
-### APK build (cihaz hizli test)
+### APK build (hizli cihaz testi)
 
 ```powershell
-.\tools\build-android-apk.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-dev.apk"
+.\tools\build-android-apk.ps1 -ProjectPath "<GamePath>/UnityProject" -OutputName "<codename>-dev.apk"
 ```
 
 Deterministik output/log:
-- APK: `BuildArtifacts/zebradash-dev.apk`
+- APK: `BuildArtifacts/<codename>-dev.apk`
 - Unity log: `BuildArtifacts/unity-android-apk-build.log`
 
 Opsiyonel cihaz kurulumu:
 
 ```powershell
-.\tools\install-android.ps1 -ApkPath "BuildArtifacts/zebradash-dev.apk"
+.\tools\install-android.ps1 -ApkPath "BuildArtifacts/<codename>-dev.apk"
 ```
 
 ### AAB build
 
 ```powershell
-.\tools\build-android.ps1 -ProjectPath "Games/Game_Arcade_ZebraDash/UnityProject" -OutputName "zebradash-review.aab"
+.\tools\build-android.ps1 -ProjectPath "<GamePath>/UnityProject" -OutputName "<codename>-review.aab"
 ```
 
 Deterministik output/log:
-- AAB: `BuildArtifacts/Android/zebradash-review.aab`
+- AAB: `BuildArtifacts/Android/<codename>-review.aab`
 - Unity log: `BuildArtifacts/unity-android-build.log`
 
 ### Internal upload (opsiyonel)
 
 ```powershell
-.\tools\upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/zebradash-review.aab" -GamePath "Games/Game_Arcade_ZebraDash" -SkipIfSecretsMissing
+.\tools\upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/<codename>-review.aab" -GamePath "<GamePath>" -SkipIfSecretsMissing
 ```
+
+Play text metadata upload (opsiyonel):
+
+```powershell
+.\tools\upload-android-internal.ps1 -AabPath "BuildArtifacts/Android/<codename>-review.aab" -GamePath "<GamePath>" -UploadMetadata
+```
+
+### One-command internal release
+
+```powershell
+.\tools\release-android-internal.ps1 -GamePath "<GamePath>" -UploadMetadata
+```
+
+Bu zincir:
+- `check-store-yaml`
+- `check-unity-compile`
+- `analyze-audio`
+- `build-android`
+- `upload-android-internal`
 
 Secret standardi:
 - Tercih edilen: `MINILAB_PLAY_JSON`
 - Geriye donuk destek: `GOOGLE_PLAY_JSON_KEY_PATH`
 
-Eksik tooling/secret varsa upload script `SKIP` doner (exit 0), nedeni acik yazar.
-
 ## 2) iOS Pipeline (Resmi Yol + Alternatifler)
 
-### Resmi yol (secilen): Seçenek B - GitHub Actions macOS runner
-
-Gerekce:
-- Windows agirlikli ekipte merkezi release otomasyonu
-- PR/branch tabanli izlenebilirlik
-- fastlane + App Store Connect API key ile sirket ici standardizasyon
+### Resmi yol: Seçenek B - GitHub Actions macOS runner
 
 Windows host'ta iOS scripts:
 - `tools/build-ios.ps1 -SkipIfNoMac` -> `SKIP`
 - `tools/upload-testflight-internal.ps1 -SkipIfNoMac` -> `SKIP`
 
-Bu beklenen davranistir; gercek build/upload macOS runner'da kosar.
-
-### Seçenek A - Dedicated Mac mini
-
-- Mac'te Unity + Xcode + fastlane kurulumu
-- Signing materyalleri local keychain'de
-- `tools/build-ios.ps1` + `tools/upload-testflight-internal.ps1` lokal calisir
-
-### Seçenek C - Unity Cloud Build
-
-- Unity Cloud Build ile iOS archive
-- Sonrasi TestFlight upload fastlane/ASC API ile
-- Signing/provisioning ve secrets platforma tasinir
-
-### iOS secrets (B/A/C ortak)
+### iOS secrets
 
 - `APP_STORE_CONNECT_API_KEY_ID`
 - `APP_STORE_CONNECT_ISSUER_ID`
 - `APP_STORE_CONNECT_API_KEY_CONTENT`
 - (opsiyonel fallback) `FASTLANE_SESSION`
+
+### One-command internal release (macOS)
+
+```powershell
+.\tools\release-ios-internal.ps1 -GamePath "<GamePath>"
+```
+
+Bu zincir:
+- `check-store-yaml`
+- `build-ios` (Unity export + archive)
+- `upload-testflight-internal`
+
+### GitHub Actions workflow
+
+Manual workflow:
+- `.github/workflows/mobile-release.yml`
+- Inputlar:
+  - `game_path`
+  - `platform` (`android|ios|both`)
+  - `build_number` (opsiyonel)
+  - `android_track`
+  - `upload_metadata`
+
+Runner gereksinimi:
+- Android: `self-hosted`, `windows`, `minilab-unity`
+- iOS: `self-hosted`, `macOS`, `minilab-unity`
+
+### Full one-command orchestrator
+
+```powershell
+.\tools\deploy-platform.ps1 -GamePath "<GamePath>" -Platform both -UploadMetadata $true -RunAndroidSmokeTest $true -DispatchIosFromWindows $true
+```
+
+Windows host davranisi:
+- Android internal release lokal calisir.
+- iOS release lokal calisamazsa `gh` ile `mobile-release.yml` workflow dispatch eder.
+- Deploy oncesi `platform-ready.ps1` otomatik calisir (aksi halde deploy durur).
+
+Windows iOS dispatch gereksinimi:
+- GitHub CLI (`gh`) kurulu olmali.
+- `gh auth login` tamamlanmis olmali.
+
+### Readiness check
+
+```powershell
+.\tools\platform-ready.ps1 -GamePath "<GamePath>" -Platform both
+```
+
+Bu kontrol:
+- `store.yaml` schema
+- upload/tooling readiness
+- Android test device varligi
+- CI release/smoke workflow varligi
+
+### Android smoke workflow
+
+- `.github/workflows/mobile-smoke-test.yml`
+- manual input:
+  - `game_path`
+  - `duration_seconds`
 
 ## 3) PR Review checks
 
@@ -118,10 +178,10 @@ PR workflow:
 - `tools/check-secrets.ps1`
 - `tools/check-docs.ps1`
 - `tools/check-template-purity.ps1`
+- `tools/check-store-yaml.ps1` (Game_* varsa)
 - `tools/check-tree.ps1`
 - `tools/check-unity-compile.ps1`
-- `tools/check-clean-tree.ps1` (Unity run sonrasi dirty tree guard)
-- iOS dry-run (macOS yoksa bilincli SKIP)
+- `tools/check-clean-tree.ps1`
 
 ## 4) Versioning standardi
 

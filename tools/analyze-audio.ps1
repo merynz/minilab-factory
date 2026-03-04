@@ -1,5 +1,5 @@
 param(
-    [string]$GamePath = "Games/Game_Arcade_ZebraDash",
+    [string]$GamePath = "",
     [string]$AudioRoot = "",
     [string]$SourceZip = "C:\Users\monster\Downloads\FREE EDM Music Pack.zip",
     [int]$Seed = 20260222,
@@ -546,6 +546,18 @@ function Build-BeatMap(
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+if ([string]::IsNullOrWhiteSpace($GamePath)) {
+    $detectedGame = Get-ChildItem -Path (Join-Path $repoRoot "Games") -Directory -Filter "Game_*" -ErrorAction SilentlyContinue |
+        Sort-Object Name |
+        Select-Object -First 1
+    if ($null -eq $detectedGame) {
+        throw "GamePath not provided and no Games/Game_* directory found."
+    }
+
+    $GamePath = [System.IO.Path]::GetRelativePath($repoRoot, $detectedGame.FullName).Replace('\', '/')
+    Write-Host "Auto-detected GamePath: $GamePath"
+}
+
 $resolvedGamePath = Resolve-PathSafe -InputPath $GamePath -RepoRoot $repoRoot
 if (!(Test-Path $resolvedGamePath)) {
     throw "Game path not found: $resolvedGamePath"

@@ -24,6 +24,47 @@ jobs:
         shell: pwsh
         run: .\tools\check-template-purity.ps1
 
+      - name: Store schema checks (if game apps exist)
+        shell: pwsh
+        run: |
+          $games = Get-ChildItem -Path .\Games -Directory -Filter "Game_*" -ErrorAction SilentlyContinue
+          if ($null -eq $games -or $games.Count -eq 0) {
+            Write-Host "SKIP: no Games/Game_* directory found."
+            exit 0
+          }
+
+          foreach ($game in $games) {
+            .\tools\check-store-yaml.ps1 -GamePath $game.FullName
+          }
+
+      - name: Script syntax checks (release/test scripts)
+        shell: pwsh
+        run: |
+          $files = @(
+            "tools/check-store-yaml.ps1",
+            "tools/export-store-metadata.ps1",
+            "tools/setup-release-tooling.ps1",
+            "tools/smoke-android.ps1",
+            "tools/release-android-internal.ps1",
+            "tools/release-ios-internal.ps1",
+            "tools/deploy-platform.ps1",
+            "tools/upload-android-internal.ps1",
+            "tools/upload-testflight-internal.ps1",
+            "tools/build-android.ps1",
+            "tools/build-ios.ps1"
+          )
+
+          foreach ($file in $files) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              Write-Host "FAIL: $file"
+              $errors | ForEach-Object { Write-Host " - $($_.Message)" }
+              exit 1
+            }
+          }
+
       - name: Generate tree summary
         shell: pwsh
         run: .\tools\check-tree.ps1

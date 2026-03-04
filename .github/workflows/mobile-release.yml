@@ -1,0 +1,90 @@
+name: Mobile Internal Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      game_path:
+        description: 'Game path, for example: Games/Game_Arcade_MyGame'
+        required: true
+        type: string
+      platform:
+        description: 'Release target platform'
+        required: true
+        type: choice
+        options:
+          - android
+          - ios
+          - both
+      build_number:
+        description: 'Optional platform build number'
+        required: false
+        type: string
+      android_track:
+        description: 'Google Play track'
+        required: false
+        default: internal
+        type: choice
+        options:
+          - internal
+          - alpha
+          - beta
+          - production
+      upload_metadata:
+        description: 'Upload Play text metadata from store.yaml'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  android-internal:
+    if: ${{ inputs.platform == 'android' || inputs.platform == 'both' }}
+    runs-on: [self-hosted, windows, minilab-unity]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Android internal release
+        shell: pwsh
+        env:
+          MINILAB_PLAY_JSON: ${{ secrets.MINILAB_PLAY_JSON }}
+          GOOGLE_PLAY_JSON_KEY_PATH: ${{ secrets.GOOGLE_PLAY_JSON_KEY_PATH }}
+        run: |
+          $params = @(
+            "-GamePath", "${{ inputs.game_path }}",
+            "-Track", "${{ inputs.android_track }}"
+          )
+
+          if ("${{ inputs.build_number }}" -ne "") {
+            $params += @("-BuildNumber", "${{ inputs.build_number }}")
+          }
+
+          if ("${{ inputs.upload_metadata }}" -eq "true") {
+            $params += "-UploadMetadata"
+          }
+
+          .\tools\release-android-internal.ps1 @params
+
+  ios-internal:
+    if: ${{ inputs.platform == 'ios' || inputs.platform == 'both' }}
+    runs-on: [self-hosted, macOS, minilab-unity]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: iOS internal release
+        shell: pwsh
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_API_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
+        run: |
+          $params = @(
+            "-GamePath", "${{ inputs.game_path }}"
+          )
+
+          if ("${{ inputs.build_number }}" -ne "") {
+            $params += @("-BuildNumber", "${{ inputs.build_number }}")
+          }
+
+          .\tools\release-ios-internal.ps1 @params

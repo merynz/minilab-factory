@@ -35,7 +35,7 @@ namespace MiniLab.Build
 
                 AndroidStoreConfig storeConfig = LoadAndroidStoreConfig();
                 ApplyAndroidApplicationId(storeConfig.ApplicationId, storeConfig.SourcePath, storeConfig.IsPlaceholder);
-                ApplyLandscapeOrientation();
+                ApplyOrientationForApplication(storeConfig.ApplicationId);
                 ValidateKeystoreConfiguration();
 
                 string[] scenes = EnsureEnabledScenesWithBootstrap();
@@ -72,7 +72,7 @@ namespace MiniLab.Build
                 string outputFileName = Environment.GetEnvironmentVariable("MINILAB_ANDROID_APK_NAME");
                 if (string.IsNullOrWhiteSpace(outputFileName))
                 {
-                    outputFileName = "zebradash-dev.apk";
+                    outputFileName = "minilab-dev.apk";
                 }
 
                 string buildNumberRaw = Environment.GetEnvironmentVariable("MINILAB_ANDROID_BUILD_NUMBER");
@@ -83,7 +83,7 @@ namespace MiniLab.Build
 
                 AndroidStoreConfig storeConfig = LoadAndroidStoreConfig();
                 ApplyAndroidApplicationId(storeConfig.ApplicationId, storeConfig.SourcePath, storeConfig.IsPlaceholder);
-                ApplyLandscapeOrientation();
+                ApplyOrientationForApplication(storeConfig.ApplicationId);
                 ValidateKeystoreConfiguration();
 
                 string[] scenes = EnsureEnabledScenesWithBootstrap();
@@ -124,7 +124,7 @@ namespace MiniLab.Build
 
                 string iosBundleId = LoadIosBundleId();
                 ApplyIosBundleId(iosBundleId);
-                ApplyLandscapeOrientation();
+                ApplyOrientationForApplication(iosBundleId);
 
                 BuildPlayerOptions options = new BuildPlayerOptions
                 {
@@ -355,12 +355,37 @@ namespace MiniLab.Build
             return string.IsNullOrWhiteSpace(value) ? fallback : value;
         }
 
+        private static void ApplyOrientationForApplication(string applicationId)
+        {
+            bool preferPortrait = !string.IsNullOrWhiteSpace(applicationId)
+                                 && applicationId.IndexOf("fluxout", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (preferPortrait)
+            {
+                ApplyPortraitOrientation();
+            }
+            else
+            {
+                ApplyLandscapeOrientation();
+            }
+        }
+
         private static void ApplyLandscapeOrientation()
         {
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.LandscapeLeft;
             PlayerSettings.allowedAutorotateToLandscapeLeft = true;
             PlayerSettings.allowedAutorotateToLandscapeRight = false;
             PlayerSettings.allowedAutorotateToPortrait = false;
+            PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
+            PlayerSettings.Android.resizeableActivity = false;
+            PlayerSettings.Android.startInFullscreen = true;
+        }
+
+        private static void ApplyPortraitOrientation()
+        {
+            PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
+            PlayerSettings.allowedAutorotateToLandscapeLeft = false;
+            PlayerSettings.allowedAutorotateToLandscapeRight = false;
+            PlayerSettings.allowedAutorotateToPortrait = true;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
             PlayerSettings.Android.resizeableActivity = false;
             PlayerSettings.Android.startInFullscreen = true;

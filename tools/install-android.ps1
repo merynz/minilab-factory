@@ -1,7 +1,7 @@
 param(
-    [string]$ApkPath = "BuildArtifacts/zebradash-dev.apk",
+    [string]$ApkPath = "BuildArtifacts/minilab-dev.apk",
     [switch]$Launch,
-    [string]$PackageName = "com.zebratank.zebradash"
+    [string]$PackageName = "com.example.minilab.game"
 )
 
 Set-StrictMode -Version Latest
@@ -79,8 +79,12 @@ Write-Host "APK installed successfully."
 
 if ($Launch) {
     Write-Host "Launching app package: $PackageName"
-    & $adbPath shell monkey -p $PackageName -c android.intent.category.LAUNCHER 1
+    & $adbPath shell am start -n "$PackageName/com.unity3d.player.UnityPlayerGameActivity" | Out-Null
     if ($LASTEXITCODE -ne 0) {
-        throw "adb launch failed with exit code $LASTEXITCODE"
+        Write-Host "WARN: am start failed, falling back to monkey launch."
+        & $adbPath shell monkey -p $PackageName -c android.intent.category.LAUNCHER 1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "adb launch failed with exit code $LASTEXITCODE"
+        }
     }
 }

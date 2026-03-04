@@ -130,6 +130,58 @@ function Invoke-WithTimeout([string]$FilePath, [string[]]$Args, [int]$TimeoutMin
     return $process.ExitCode
 }
 
+function Resolve-FastlaneInvocation([string]$RepoRoot) {
+    $bundle = Get-Command bundle -ErrorAction SilentlyContinue
+    $fastlane = Get-Command fastlane -ErrorAction SilentlyContinue
+    $gemfilePath = Join-Path $RepoRoot "Gemfile"
+    $bundleFallbacks = @(
+        "C:\Ruby33-x64\bin\bundle.bat",
+        "C:\Ruby33-x64\bin\bundle"
+    )
+    $fastlaneFallbacks = @(
+        "C:\Ruby33-x64\bin\fastlane.bat",
+        "C:\Ruby33-x64\bin\fastlane"
+    )
+    if (-not $bundle) {
+        foreach ($candidate in $bundleFallbacks) {
+            if (Test-Path $candidate) {
+                $bundle = [pscustomobject]@{ Source = (Resolve-Path $candidate).Path }
+                break
+            }
+        }
+    }
+    if (-not $fastlane) {
+        foreach ($candidate in $fastlaneFallbacks) {
+            if (Test-Path $candidate) {
+                $fastlane = [pscustomobject]@{ Source = (Resolve-Path $candidate).Path }
+                break
+            }
+        }
+    }
+
+    if ($bundle -and (Test-Path $gemfilePath)) {
+        return @{
+            FilePath = $bundle.Source
+            Prefix = @("exec", "fastlane")
+            Mode = "bundle"
+        }
+    }
+
+    if ($fastlane) {
+        return @{
+            FilePath = $fastlane.Source
+            Prefix = @()
+            Mode = "direct"
+        }
+    }
+
+    if ($bundle -and !(Test-Path $gemfilePath)) {
+        throw "Gemfile not found at repo root. Add Gemfile or install fastlane globally."
+    }
+
+    throw "Fastlane executable not found. Install Ruby + bundler and run bundle install."
+}
+
 if (-not $IsMacOS) {
     $message = "iOS build is blocked by Mac/signing requirements."
     if ($SkipIfNoMac) {
@@ -194,19 +246,19 @@ if ($exportCode -ne 0) {
 Write-Host "iOS Xcode export completed: $ExportDir"
 
 if ($Archive -or $UploadInternal) {
-    if (!(Get-Command bundle -ErrorAction SilentlyContinue)) {
-        throw "Ruby bundler is required for fastlane archive lane."
-    }
-
     $xcodeProjPath = Join-Path $ExportDir "Unity-iPhone.xcodeproj"
     if (!(Test-Path $xcodeProjPath)) {
         throw "Xcode project not found after export: $xcodeProjPath"
     }
 
+    $fastlaneInvoker = Resolve-FastlaneInvocation -RepoRoot $repoRoot
     $env:MINILAB_IOS_XCODEPROJ = $xcodeProjPath
     $env:MINILAB_IOS_OUTPUT_DIR = $artifactDir
     $env:MINILAB_IOS_IPA_NAME = $IpaName
-    $archiveCode = Invoke-WithTimeout "bundle" @("exec", "fastlane", "ios", "build_archive") $TimeoutMinutes ""
+    $archiveArgs = @()
+    $archiveArgs += $fastlaneInvoker.Prefix
+    $archiveArgs += @("ios", "build_archive")
+    $archiveCode = Invoke-WithTimeout $fastlaneInvoker.FilePath $archiveArgs $TimeoutMinutes ""
     if ($archiveCode -ne 0) {
         throw "iOS archive/export failed."
     }
@@ -214,5 +266,14 @@ if ($Archive -or $UploadInternal) {
 
 if ($UploadInternal) {
     $ipaPath = Join-Path $artifactDir $IpaName
-    & (Join-Path $PSScriptRoot "upload-testflight-internal.ps1") -IpaPath $ipaPath -SkipIfNoMac -SkipIfSecretsMissing
+    $storeCandidatePaths = @(
+        (Join-Path $resolvedProjectPath "store.yaml"),
+        (Join-Path $resolvedProjectPath "..\\store.yaml")
+    )
+    $storePath = $storeCandidatePaths |
+        ForEach-Object { [System.IO.Path]::GetFullPath($_) } |
+        Where-Object { Test-Path $_ } |
+        Select-Object -First 1
+
+    & (Join-Path $PSScriptRoot "upload-testflight-internal.ps1") -IpaPath $ipaPath -StorePath $storePath -SkipIfNoMac -SkipIfSecretsMissing
 }

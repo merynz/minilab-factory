@@ -7,6 +7,7 @@ param(
     [string]$PackageName = "",
     [int]$TimeoutMinutes = 20,
     [switch]$UploadInternal,
+    [switch]$UploadMetadata,
     [switch]$SkipIfUnityMissing,
     [switch]$AllowNonGameProject
 )
@@ -185,15 +186,6 @@ Write-Host "Android Build Support module: detected"
 $resolvedProjectPath = Resolve-CanonicalProjectPath $ProjectPath $repoRoot
 Write-Host "Resolved ProjectPath: $resolvedProjectPath"
 
-$syncScript = Join-Path $PSScriptRoot "sync-zebradash-content.ps1"
-if (Test-Path $syncScript) {
-    Write-Host "Running ZebraDash content sync before AAB build..."
-    & $syncScript -ProjectPath $resolvedProjectPath
-    if ($LASTEXITCODE -ne 0) {
-        throw "Content sync failed with exit code $LASTEXITCODE"
-    }
-}
-
 if (-not $AllowNonGameProject) {
     if ($resolvedProjectPath -notmatch '[\\/]Games[\\/]Game_[^\\/]+[\\/]UnityProject$') {
         throw "AAB build must run on Games/<Game>/UnityProject. Use -AllowNonGameProject to override."
@@ -260,15 +252,27 @@ Write-Host "AAB: $outputAabPath"
 if ($UploadInternal) {
     $gamePath = Split-Path -Parent $resolvedProjectPath
     if ([string]::IsNullOrWhiteSpace($PackageName)) {
-        & (Join-Path $PSScriptRoot "upload-android-internal.ps1") `
-            -AabPath $outputAabPath `
-            -GamePath $gamePath `
-            -StorePath $storePath `
-            -SkipIfSecretsMissing
+        $uploadArgs = @(
+            "-AabPath", $outputAabPath,
+            "-GamePath", $gamePath,
+            "-StorePath", $storePath,
+            "-SkipIfSecretsMissing"
+        )
+        if ($UploadMetadata) {
+            $uploadArgs += "-UploadMetadata"
+        }
+
+        & (Join-Path $PSScriptRoot "upload-android-internal.ps1") @uploadArgs
     } else {
-        & (Join-Path $PSScriptRoot "upload-android-internal.ps1") `
-            -AabPath $outputAabPath `
-            -PackageName $PackageName `
-            -SkipIfSecretsMissing
+        $uploadArgs = @(
+            "-AabPath", $outputAabPath,
+            "-PackageName", $PackageName,
+            "-SkipIfSecretsMissing"
+        )
+        if ($UploadMetadata -and $storePath) {
+            $uploadArgs += @("-StorePath", $storePath, "-UploadMetadata")
+        }
+
+        & (Join-Path $PSScriptRoot "upload-android-internal.ps1") @uploadArgs
     }
 }

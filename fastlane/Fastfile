@@ -7,20 +7,29 @@ platform :android do
     package_name = ENV["MINILAB_ANDROID_PACKAGE_NAME"]
     track_name = ENV["MINILAB_ANDROID_TRACK"] || "internal"
     json_key_path = ENV["MINILAB_PLAY_JSON"] || ENV["GOOGLE_PLAY_JSON_KEY_PATH"] || ENV["SUPPLY_JSON_KEY"]
+    upload_metadata = ENV["MINILAB_ANDROID_UPLOAD_METADATA"] == "1"
+    metadata_path = ENV["MINILAB_ANDROID_METADATA_PATH"]
 
     UI.user_error!("MINILAB_ANDROID_AAB_PATH is required") if aab_path.to_s.empty?
     UI.user_error!("MINILAB_ANDROID_PACKAGE_NAME is required") if package_name.to_s.empty?
     UI.user_error!("Play JSON key path is required (MINILAB_PLAY_JSON)") if json_key_path.to_s.empty?
+    if upload_metadata
+      UI.user_error!("MINILAB_ANDROID_METADATA_PATH is required when metadata upload is enabled") if metadata_path.to_s.empty?
+      UI.user_error!("Android metadata path not found: #{metadata_path}") unless File.directory?(metadata_path)
+    end
 
-    upload_to_play_store(
+    options = {
       package_name: package_name,
       aab: aab_path,
       json_key: json_key_path,
       track: track_name,
       skip_upload_images: true,
       skip_upload_screenshots: true,
-      skip_upload_metadata: true
-    )
+      skip_upload_metadata: !upload_metadata
+    }
+    options[:metadata_path] = metadata_path if upload_metadata
+
+    upload_to_play_store(options)
 
     UI.success("Android internal upload completed: #{aab_path}")
   end
@@ -50,15 +59,19 @@ platform :ios do
   desc "Upload IPA to TestFlight internal (requires App Store Connect credentials)"
   lane :internal do
     ipa_path = ENV["MINILAB_IOS_IPA_PATH"]
+    changelog_text = ENV["MINILAB_IOS_CHANGELOG"]
     if ipa_path.to_s.empty?
       build_archive
       ipa_path = Actions.lane_context[SharedValues::IPA_OUTPUT_PATH]
     end
 
-    upload_to_testflight(
+    options = {
       ipa: ipa_path,
       skip_waiting_for_build_processing: true
-    )
+    }
+    options[:changelog] = changelog_text unless changelog_text.to_s.empty?
+
+    upload_to_testflight(options)
 
     UI.success("TestFlight upload completed: #{ipa_path}")
   end

@@ -2,7 +2,7 @@ param(
     [string]$UnityPath = "",
     [Parameter(Mandatory = $true)][string]$ProjectPath,
     [string]$BuildNumber = "",
-    [string]$OutputName = "zebradash-dev.apk",
+    [string]$OutputName = "minilab-dev.apk",
     [string]$ArtifactDir = "",
     [int]$TimeoutMinutes = 20,
     [switch]$SkipIfUnityMissing
@@ -134,15 +134,6 @@ if ([string]::IsNullOrWhiteSpace($resolvedUnityPath)) {
 
 $resolvedProjectPath = Resolve-CanonicalProjectPath $ProjectPath $repoRoot
 Write-Host "Resolved ProjectPath: $resolvedProjectPath"
-
-$syncScript = Join-Path $PSScriptRoot "sync-zebradash-content.ps1"
-if (Test-Path $syncScript) {
-    Write-Host "Running ZebraDash content sync before APK build..."
-    & $syncScript -ProjectPath $resolvedProjectPath
-    if ($LASTEXITCODE -ne 0) {
-        throw "Content sync failed with exit code $LASTEXITCODE"
-    }
-}
 
 if ([string]::IsNullOrWhiteSpace($ArtifactDir)) {
     $ArtifactDir = Join-Path $repoRoot "BuildArtifacts"
